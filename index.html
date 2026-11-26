@@ -125,7 +125,9 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     <label id="lkP1"><span id="lkL1"></span><input type="password" name="p1"></label>
     <label id="lkC"><span data-t="confirmPass"></span><input type="password" name="p2" autocomplete="new-password"></label>
     <p class="meta" id="lkWarn"></p><div class="err" id="lkErr" role="alert"></div>
+    <input type="text" name="un" value="MLA Diary" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;opacity:0;height:1px;width:1px;pointer-events:none">
     <button class="pri" type="submit" id="lkBtn"></button>
+    <button class="ghost" type="button" id="lkBio" data-a="bioUnlock" data-t="faceUnlock" style="display:none"></button>
   </form>
   <div class="acts"><button type="button" class="pri" id="lkRetry" data-a="lkRetry" data-t="retry" style="display:none"></button><button type="button" class="ghost sm" id="lkRestore" data-a="restoreStart" data-t="restore"></button><button type="button" class="ghost sm" id="lkOut" data-a="lkOut" data-t="signOut" style="display:none"></button><button type="button" class="ghost sm" data-a="eraseStart" id="lkErase" data-t="forgot"></button><button type="button" class="ghost sm" data-a="langLock" data-t="langBtn"></button></div>
 </div></div>
@@ -246,8 +248,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <input type="file" id="xlIn" accept=".xlsx,.xls,.csv" hidden>
 <datalist id="courts"></datalist><datalist id="clientList"></datalist>
 <div class="toast" id="toast" role="status"></div>
-<script src="config.js"></script>
-<script src="i18n.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=5"></script>
+<script src="i18n.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

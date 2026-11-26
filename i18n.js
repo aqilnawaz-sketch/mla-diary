@@ -1,5 +1,6 @@
 window.I18N={
 en:{
+faceId:"Face ID / fingerprint",faceUnlock:"Unlock with Face ID",bioHelp:"Open the diary with Face ID (or fingerprint) instead of typing the password. Turn it on separately on each phone/laptop. If you change the password, turn it on again.",bioEnable:"Turn on",bioDisable:"Turn off",bioActive:"On for this device",bioOn:"Face ID unlock is on",bioOffDone:"Face ID unlock turned off",bioNo:"This browser can’t do Face ID unlock yet. Let it save your password instead (tap Save Password when asked) — it then fills it with Face ID.",bioCancel:"Cancelled",bioFail:"Face ID didn’t work — type your password.",
 editClient:"Edit client details",addTask:"+ Notice / reply / filing",courtType:"Court",city:"City",remindClient:"Remind client",lastHearing:"Last hearing",feeDueOn:"Fee due",noFeeDate:"No fee due date set",feeDueDate:"Fee due date",noCasesYet:"No cases yet.",call:"Call",
 noPerm:"Not allowed for this account.",needOnline:"Needs internet — try again when online.",onlyDevice:"Large file saved on this device only",fileMissing:"File not found on this device",
 scan:"Scan with camera",waPdf:"WhatsApp PDF",print:"Print",emailBtn:"Email",readyShare:"File ready",shareNow:"Share now",download:"Download",
@@ -52,6 +53,7 @@ waRem:"Hearing reminder",waRec:"Send receipt note",prev:"Previous month",next:"N
 nothingDay:"No hearings on this day.",untitledClient:"Unnamed client",lockFee:"Agreed fee",
 },
 ur:{
+faceId:"فیس آئی ڈی / فنگر پرنٹ",faceUnlock:"فیس آئی ڈی سے کھولیں",bioHelp:"پاس ورڈ لکھنے کی بجائے فیس آئی ڈی (یا فنگر پرنٹ) سے ڈائری کھولیں۔ ہر فون/لیپ ٹاپ پر الگ سے آن کریں۔ پاس ورڈ بدلنے پر دوبارہ آن کریں۔",bioEnable:"آن کریں",bioDisable:"بند کریں",bioActive:"اس ڈیوائس پر آن",bioOn:"فیس آئی ڈی آن ہو گیا",bioOffDone:"فیس آئی ڈی بند",bioNo:"یہ براؤزر ابھی فیس آئی ڈی سپورٹ نہیں کرتا۔ پاس ورڈ محفوظ کرنے کا پوچھے تو Save دبائیں — پھر فیس آئی ڈی سے خود بھر دے گا۔",bioCancel:"منسوخ",bioFail:"فیس آئی ڈی کام نہیں کیا — پاس ورڈ لکھیں۔",
 editClient:"موکل کی تفصیل میں ترمیم",addTask:"+ نوٹس / جواب / فائلنگ",courtType:"عدالت",city:"شہر",remindClient:"موکل کو یاددہانی",lastHearing:"آخری سماعت",feeDueOn:"فیس واجب",noFeeDate:"فیس کی تاریخ مقرر نہیں",feeDueDate:"فیس کی تاریخ",noCasesYet:"ابھی کوئی مقدمہ نہیں۔",call:"کال",
 noPerm:"اس اکاؤنٹ کو اجازت نہیں۔",needOnline:"انٹرنیٹ درکار ہے — آن لائن ہو کر دوبارہ کوشش کریں۔",onlyDevice:"بڑی فائل صرف اسی ڈیوائس پر محفوظ",fileMissing:"فائل اس ڈیوائس پر موجود نہیں",
 scan:"کیمرہ سے اسکین",waPdf:"واٹس ایپ PDF",print:"پرنٹ",emailBtn:"ای میل",readyShare:"فائل تیار",shareNow:"ابھی شیئر کریں",download:"ڈاؤن لوڈ",

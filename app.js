@@ -549,6 +549,7 @@ function vSettings(){
   <div class="bar" style="margin:14px 0 0"><label class="chk" style="gap:10px">${esc(t('autoLock'))}<select id="autoLock" style="width:auto">${[1,5,15,30].map(m=>`<option value="${m}" ${m===al?'selected':''}>${m} ${esc(t('minutes'))}</option>`).join('')}</select></label><button class="sm" type="button" data-a="lockNow">${esc(t('lockNow'))}</button></div></div>`;
   if(CLOUD&&C.adv)h+=`<div class="panel"><h3>${esc(t('team'))}</h3><p class="meta">${esc(t('teamHelp'))}</p><div class="hist" id="staffList"><div class="meta">…</div></div>
     <form id="staffForm" class="g2" style="margin-top:10px" autocomplete="off"><label><span>${esc(t('munshiEmail'))}</span><input name="e" type="email" inputmode="email"></label><label><span>${esc(t('tempPass'))}</span><input name="p" type="text" autocomplete="off"></label><div style="align-self:end"><button class="pri" type="submit">${esc(t('addMunshi'))}</button></div></form></div>`;
+  h+=`<div class="panel"><h3>${esc(t('faceId'))}</h3><p class="meta">${esc(t('bioHelp'))}</p><div id="bioBox" class="acts"></div></div>`;
   h+=`<div class="panel"><h3>${esc(t('reminders'))}</h3><p class="meta">${esc(t('icsHelp'))}</p><p class="meta">${esc(t('lastIcs'))}: <b>${settings.icsAt?fd(settings.icsAt):esc(t('never'))}</b></p><button class="pri" type="button" data-a="ics">${esc(t('icsBtn'))}</button></div>`;
   h+=`<div class="panel"><h3>${esc(t('importExcel'))}</h3><p class="meta">${esc(t('importHelp'))}</p>`+(IMPORT?`<div class="note">${esc(t('importFound'))}: <b>${IMPORT.length}</b> — ${IMPORT.slice(0,3).map(r=>esc(r.title||r.client)).join(', ')}${IMPORT.length>3?'…':''}</div><div class="acts"><button class="pri" type="button" data-a="runImport">${esc(t('importNow'))}</button><button type="button" class="ghost" data-a="cancelImport">${esc(t('cancel'))}</button></div>`:`<div class="acts"><button type="button" data-a="pickExcel">${esc(t('importExcel'))}</button><button type="button" class="ghost" data-a="xlTemplate">${esc(t('template'))}</button></div>`)+`</div>`;
   h+=`<div class="panel"><h3>${esc(t('backup'))}</h3><p class="meta">${esc(t('backupHelp'))}</p><p>${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b></p>
@@ -556,8 +557,29 @@ function vSettings(){
   <div class="panel"><h3>${esc(t('device'))}</h3><p class="meta">${esc(CLOUD?t('cloudOn'):t('localOnly'))}</p><p class="meta" id="storeInfo"></p><p class="meta">${esc(t('installHint'))}</p></div>
   <div class="panel"><h3 class="danger">${esc(CLOUD?t('removeDevice'):t('erase'))}</h3><p class="meta">${esc(CLOUD?t('removeDeviceHelp'):t('eraseHelp'))}</p><button type="button" class="ghost danger" data-a="eraseStart">${esc(CLOUD?t('removeDevice'):t('erase'))}</button></div>`;
   return h}
-async function storeInfo(){staffList();const el=$('#storeInfo');if(!el||!navigator.storage||!navigator.storage.estimate)return;try{const e=await navigator.storage.estimate();const p=navigator.storage.persisted?await navigator.storage.persisted():false;el.textContent=`${t('storageUsed')}: ${(e.usage/1048576).toFixed(1)} MB · ${p?t('persistOn'):t('persistOff')}`}catch(x){}}
+async function storeInfo(){staffList();bioBox();const el=$('#storeInfo');if(!el||!navigator.storage||!navigator.storage.estimate)return;try{const e=await navigator.storage.estimate();const p=navigator.storage.persisted?await navigator.storage.persisted():false;el.textContent=`${t('storageUsed')}: ${(e.usage/1048576).toFixed(1)} MB · ${p?t('persistOn'):t('persistOff')}`}catch(x){}}
 
+/* ---------- Face ID / fingerprint (passkey + PRF) ---------- */
+const bioKey=()=>CLOUD?'bio_'+C.email:'bio';
+const PRF_SALT=new Uint8Array(32).map((_,i)=>'mla-diary-prf-salt-v1-0123456789'.charCodeAt(i));
+const bioOK=()=>!!(window.PublicKeyCredential&&navigator.credentials);
+async function prfGet(rawId){const a=await navigator.credentials.get({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),allowCredentials:[{type:'public-key',id:rawId}],userVerification:'required',timeout:60000,extensions:{prf:{eval:{first:PRF_SALT}}}}});
+  const r=a&&a.getClientExtensionResults().prf;const b=r&&r.results&&r.results.first;if(!b)throw new Error('noprf');return crypto.subtle.importKey('raw',new Uint8Array(b),'AES-GCM',false,['encrypt','decrypt'])}
+async function bioEnable(pass){
+  if(!bioOK()){toast(t('bioNo'));return}
+  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt);await dec(k,S.meta.ver)}}catch(x){toast(t('wrongPass'));return}
+  try{const cred=await navigator.credentials.create({publicKey:{rp:{name:'MLA Diary'},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:CLOUD?C.email:'MLA Diary',displayName:'MLA Diary'},challenge:crypto.getRandomValues(new Uint8Array(32)),
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},timeout:60000,extensions:{prf:{eval:{first:PRF_SALT}}}}});
+    const raw=new Uint8Array(cred.rawId);let key;const r=cred.getClientExtensionResults().prf;
+    if(r&&r.results&&r.results.first)key=await crypto.subtle.importKey('raw',new Uint8Array(r.results.first),'AES-GCM',false,['encrypt','decrypt']);else key=await prfGet(raw);
+    const blob=await enc(key,te.encode(pass));await idbPut('kv',bioKey(),{id:b64(raw),blob:pack(blob)});toast(t('bioOn'));render()}
+  catch(x){toast(x&&x.message==='noprf'?t('bioNo'):(x&&x.name==='NotAllowedError'?t('bioCancel'):t('bioNo')))}}
+async function bioUnlock(){try{const rec=await idbGet('kv',bioKey());if(!rec)return;const key=await prfGet(unb64(rec.id));const pass=tdec.decode(await dec(key,unpack(rec.blob)));
+  const f=E($('#lockForm'));f.p1.value=pass;$('#lockForm').requestSubmit()}catch(x){if(!(x&&x.name==='NotAllowedError'))$('#lkErr').textContent=t('bioFail')}}
+async function bioOff(){await idbDel('kv',bioKey());toast(t('bioOffDone'));render()}
+
+async function bioBox(){const el=$('#bioBox');if(!el)return;const rec=await idbGet('kv',bioKey()).catch(()=>null);
+  el.innerHTML=rec?`<span class="tag paid">${esc(t('bioActive'))}</span><button type="button" class="sm ghost danger" data-a="bioOff">${esc(t('bioDisable'))}</button>`:`<input type="password" id="bioPass" placeholder="${esc(t('password'))}" autocomplete="current-password" style="flex:1 1 180px;width:auto"><button type="button" class="pri" data-a="bioOn">${esc(t('bioEnable'))}</button>`}
 /* ---------- lock ---------- */
 let idleT=null,hiddenAt=0,fails=0,waitUntil=0,LKMODE='';
 function bump(){if(!S.key)return;clearTimeout(idleT);idleT=setTimeout(lock,(settings.autoLock||5)*60000)}
@@ -575,6 +597,7 @@ async function showLock(){
   $('#lkL1').textContent=mode==='login'?t('loginPass'):mode==='setup'?t('newPass'):t('password');
   $('#lkWarn').textContent=mode==='setup'?t('passWarn'):'';$('#lkBtn').textContent=mode==='login'?t('signIn'):mode==='setup'?t('setPass'):t('unlock');
   show('#lkErase',!CLOUD&&mode==='unlock');show('#lkRestore',!CLOUD);
+  const bio=mode==='unlock'&&bioOK()?await idbGet('kv',bioKey()).catch(()=>null):null;show('#lkBio',!!bio);if(bio&&!showLock.tried){showLock.tried=1;setTimeout(bioUnlock,400)}
   f.p1.setAttribute('autocomplete',mode==='setup'?'new-password':'current-password');
   $('#lock').hidden=false;$('#appWrap').hidden=true;setTimeout(()=>{try{(mode==='login'?f.em:f.p1).focus()}catch(x){}},50);
 }
@@ -606,10 +629,10 @@ document.addEventListener('submit',async e=>{
   if(f.n.value.length<6){toast(t('passShort'));return}if(f.n.value!==f.c.value){toast(t('passMismatch'));return}
   try{const old=await deriveKey(f.o.value,S.meta.salt);await dec(old,S.meta.ver)}catch(x){toast(t('wrongPass'));return}
   toast(t('working'));
-  try{if(CLOUD){const r=await makeRing(f.n.value,{o:C.oraw,...(C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(C.email).set(r.doc);C.ring=r.doc;S.key=r.k;S.meta={salt:unb64(r.doc.salt),ver:unpk(r.doc.ver)};f.reset();toast(t('passChanged'));return}
+  try{if(CLOUD){const r=await makeRing(f.n.value,{o:C.oraw,...(C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(C.email).set(r.doc);C.ring=r.doc;S.key=r.k;S.meta={salt:unb64(r.doc.salt),ver:unpk(r.doc.ver)};f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));return}
     const salt=crypto.getRandomValues(new Uint8Array(16)),key=await deriveKey(f.n.value,salt);
     for(const k of await idbKeys('files')){const o=await idbGet('files',k);const n=await enc(key,await dec(S.key,o));n.type=o.type;await idbPut('files',k,n)}
-    const ver=await enc(key,te.encode('mla-ok'));await idbPut('kv','meta',{salt,ver});S.meta={salt,ver};S.key=key;await persist();f.reset();toast(t('passChanged'))}
+    const ver=await enc(key,te.encode('mla-ok'));await idbPut('kv','meta',{salt,ver});S.meta={salt,ver};S.key=key;await persist();f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'))}
   catch(x){toast(CLOUD?cErr(x):'Could not change password')}
 });
 document.addEventListener('change',e=>{if(e.target.id==='autoLock'){settings.autoLock=+e.target.value;persist();bump()}});
@@ -623,6 +646,9 @@ $('#eraseForm').addEventListener('submit',async e=>{e.preventDefault();if(E(e.ta
   S.key=null;S.meta=null;load_({});lock();toast(t('erased'))});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]');if(!el)return;const a=el.dataset.a;
   if(a==='lockNow')lock();
+  if(a==='bioOn'){const v=($('#bioPass')||{}).value||'';if(!v){toast(t('password'));return}bioEnable(v)}
+  if(a==='bioOff')bioOff();
+  if(a==='bioUnlock')bioUnlock();
   if(a==='encBackup')encBackup();
   if(a==='ics')exportIcs();
   if(a==='pickExcel'){$('#xlIn').value='';$('#xlIn').click()}
