@@ -1,5 +1,9 @@
 # MLA Diary — Mian Law Associates
 
+## 👉 [Open the MLA Diary app](https://aqilnawaz-sketch.github.io/mla-diary/)
+
+This page only stores the app's code. Open the link above, then use **Add to Home Screen** (iPhone) or **Install** (laptop Chrome) to get the app icon.
+
 An offline, password-locked case diary and fee register (cases, clients, hearing dates, instalments, expenses, receipts, documents, reports), English/Urdu.
 
 - **Data never leaves the device.** Everything is stored in the browser's IndexedDB, encrypted with AES-256-GCM using a key derived from the user's password (PBKDF2-SHA-256, 310,000 iterations). This repository holds only the app's code.
