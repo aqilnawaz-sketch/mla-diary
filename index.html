@@ -95,7 +95,7 @@ dialog::backdrop{background:#0009}
 .hist .sp{flex:1 1 auto}
 .db h4{margin-top:6px;font-size:16px;font-weight:800}
 .sum{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:15px}.sum b{font-variant-numeric:tabular-nums}
-.dlrow{display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:8px;align-items:end}
+.dlrow{display:grid;grid-template-columns:minmax(0,1fr) 150px 110px auto;gap:8px;align-items:end;margin-bottom:8px}
 .lock{position:fixed;inset:0;background:radial-gradient(circle at 50% 20%,#1c1a14,var(--bg) 70%);color:var(--ink);display:grid;place-items:center;padding:20px;z-index:5;overflow:auto}
 .lock[hidden],#appWrap[hidden]{display:none}
 .lockbox{width:min(400px,100%);display:grid;gap:14px}
@@ -103,6 +103,9 @@ dialog::backdrop{background:#0009}
 .lockbox>div:first-child{text-align:center}.lockbox .seal{width:132px;height:132px;border-radius:50%;margin:0 auto 10px;display:block;box-shadow:0 0 0 1px #3a321c,0 10px 40px #0008}
 .lockbox .meta{color:var(--mute)}.err{color:var(--tape);font-weight:600;min-height:1.2em}
 .lockbox .ghost{color:var(--gold2);border-color:#3a321c}.lockbox .acts{justify-content:center}
+.mic{margin-top:6px}.mic.on{background:var(--tape2);color:var(--tape);border-color:var(--tape)}
+.pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.pick button{min-height:34px;padding:0 10px;font-size:13px;font-weight:500;border-radius:99px}.pick button.on{background:var(--gold);color:#16120a;border-color:var(--gold)}
+.grp{margin-top:10px}.grp h5{margin:8px 0 4px;font:600 14px Cinzel,serif;color:var(--gold2)}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--gold);color:#16120a;font-weight:600;padding:12px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw}
 .toast.on{opacity:1}
 @media(prefers-reduced-motion:reduce){.toast{transition:none}}
@@ -115,13 +118,13 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <div id="lock" class="lock" hidden><div class="lockbox">
   <div><img class="seal" src="icons/mian-law-associates-logo-256.webp" alt="Mian Law Associates"><h1>MLA <span>Diary</span></h1><p class="sub" id="lkSub"></p></div>
   <form id="lockForm" class="lockbox" autocomplete="on">
-    <input type="text" name="username" value="MLA Diary" autocomplete="username" hidden>
-    <label><span id="lkL1"></span><input type="password" name="p1" required></label>
+        <label id="lkE"><span data-t="loginEmail"></span><input type="email" name="em" inputmode="email" autocomplete="username"></label>
+    <label id="lkP1"><span id="lkL1"></span><input type="password" name="p1"></label>
     <label id="lkC"><span data-t="confirmPass"></span><input type="password" name="p2" autocomplete="new-password"></label>
     <p class="meta" id="lkWarn"></p><div class="err" id="lkErr" role="alert"></div>
     <button class="pri" type="submit" id="lkBtn"></button>
   </form>
-  <div class="acts"><button type="button" class="ghost sm" data-a="restoreStart" data-t="restore"></button><button type="button" class="ghost sm" data-a="eraseStart" id="lkErase" data-t="forgot"></button><button type="button" class="ghost sm" data-a="langLock" data-t="langBtn"></button></div>
+  <div class="acts"><button type="button" class="pri" id="lkRetry" data-a="lkRetry" data-t="retry" style="display:none"></button><button type="button" class="ghost sm" id="lkRestore" data-a="restoreStart" data-t="restore"></button><button type="button" class="ghost sm" id="lkOut" data-a="lkOut" data-t="signOut" style="display:none"></button><button type="button" class="ghost sm" data-a="eraseStart" id="lkErase" data-t="forgot"></button><button type="button" class="ghost sm" data-a="langLock" data-t="langBtn"></button></div>
 </div></div>
 <div id="appWrap" hidden>
 <header>
@@ -151,17 +154,17 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
       <label><span data-t="fir"></span><input name="fir"></label>
       <label><span data-t="ps"></span><input name="ps"></label>
       <label><span data-t="sections"></span><input name="sections"></label>
-      <label><span data-t="court"></span><input name="court" list="courts"></label>
+      <label style="grid-column:1/-1"><span data-t="court"></span><input name="court" list="courts"><div class="pick" data-pick="court"></div></label>
       <label><span data-t="judge"></span><input name="judge"></label>
       <label><span data-t="type"></span><select name="type"></select></label>
       <label><span data-t="status"></span><select name="status"></select></label>
       <label><span data-t="filed"></span><input type="date" name="filed"></label>
       <label><span data-t="nextDate"></span><input type="date" name="nextDate"></label>
-      <label><span data-t="stage"></span><input name="stage" placeholder="Evidence, Arguments…"></label>
+      <label style="grid-column:1/-1"><span data-t="stage"></span><input name="stage"><div class="pick" data-pick="stage"></div></label>
       <label class="adm"><span data-t="lockFee"></span><input name="fee" type="number" min="0" step="500" inputmode="numeric"></label>
     </div>
     <div><h4 data-t="deadlines"></h4><div id="dlRows" class="hist"></div><button type="button" class="sm ghost" data-a="addDl" data-t="addDeadline"></button></div>
-    <label><span data-t="notes"></span><textarea name="notes" rows="2"></textarea></label>
+    <label><span data-t="notes"></span><textarea name="notes" rows="2" data-voice></textarea></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div>
   </div>
 </form></dialog>
@@ -169,16 +172,17 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <dialog id="clientDlg"><form id="clientForm" novalidate>
   <div class="dh"><h3 id="clTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db">
+    <div id="clCases"></div>
     <div class="g2">
       <label><span data-t="client"></span><input name="name"></label>
       <label><span data-t="phone"></span><input name="phone" inputmode="tel"></label>
       <label><span data-t="cnic"></span><input name="cnic" inputmode="numeric" placeholder="xxxxx-xxxxxxx-x"></label>
       <label><span data-t="referred"></span><input name="ref"></label>
+      <label><span data-t="email"></span><input name="email" type="email" inputmode="email"></label>
     </div>
     <label><span data-t="address"></span><input name="address"></label>
-    <label><span data-t="notes"></span><textarea name="notes" rows="2"></textarea></label>
+    <label><span data-t="notes"></span><textarea name="notes" rows="2" data-voice></textarea></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button><button type="button" class="ghost danger" data-a="delClient" id="delClientBtn" data-t="del"></button></div>
-    <div id="clCases"></div>
   </div>
 </form></dialog>
 
@@ -189,8 +193,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   <div class="db">
     <div class="meta" id="hCase"></div>
     <label><span data-t="hearDate"></span><input type="date" name="d"></label>
-    <label><span data-t="happened"></span><textarea name="note" rows="2"></textarea></label>
-    <div class="g2"><label><span data-t="nextDate"></span><input type="date" name="next"></label><label><span data-t="nextStage"></span><input name="stage"></label></div>
+    <label><span data-t="happened"></span><textarea name="note" rows="2" data-voice></textarea></label>
+    <div class="g2"><label><span data-t="nextDate"></span><input type="date" name="next"><div class="pick" data-pick="jump"></div></label><label><span data-t="nextStage"></span><input name="stage"><div class="pick" data-pick="stage"></div></label></div>
     <label><span data-t="status"></span><select name="status"></select></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div>
   </div>
@@ -203,7 +207,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     <div class="g2"><label><span data-t="amount"></span><input type="number" name="amt" min="0" inputmode="numeric"></label><label><span data-t="date"></span><input type="date" name="d"></label></div>
     <label id="mModeL"><span data-t="mode"></span><select name="mode"><option>Cash</option><option>Bank transfer</option><option>JazzCash</option><option>Easypaisa</option><option>Cheque</option></select></label>
     <label id="mBillL" class="chk"><input type="checkbox" name="bill" checked><span data-t="billable"></span></label>
-    <label><span data-t="note"></span><input name="note"></label>
+    <label><span data-t="note"></span><input name="note" data-voice></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div>
   </div>
 </form></dialog>
@@ -221,9 +225,14 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   <div class="db"><p data-t="eraseHelp"></p><label><span data-t="typeErase"></span><input name="w" autocomplete="off"></label>
     <div class="acts"><button class="pri" type="submit" data-t="erase"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div></div>
 </form></dialog>
+<dialog id="readyDlg"><div class="dh"><h3 data-t="readyShare"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><p id="readyName" class="meta"></p><div class="acts"><button class="pri" type="button" data-a="readyShare" data-t="shareNow"></button><button type="button" data-a="readyDl" data-t="download"></button></div></div></dialog>
 <input type="file" id="fileIn" accept="image/*,application/pdf" hidden>
+<input type="file" id="camIn" accept="image/*" capture="environment" hidden>
+<input type="file" id="xlIn" accept=".xlsx,.xls,.csv" hidden>
 <datalist id="courts"></datalist><datalist id="clientList"></datalist>
 <div class="toast" id="toast" role="status"></div>
+<script src="config.js"></script>
 <script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>

@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function em() { return request.auth.token.email.lower(); }
+    function adv() { return request.auth != null && em() == 'aqilnawaz@gmail.com'; }
+    function staff() { return request.auth != null && (adv() || exists(/databases/$(database)/documents/staff/$(em()))); }
+
+    match /meta/{d}       { allow read: if staff(); allow write: if adv(); }
+    match /staff/{e}      { allow read: if staff(); allow write: if adv(); }
+    match /keyrings/{e}   { allow read, write: if adv() || (staff() && em() == e); }
+    match /records/{id}   { allow read, write: if staff(); }
+    match /files/{id}     { allow read, write: if staff(); }
+    match /fees/{id}      { allow read, write: if adv(); }
+  }
+}
