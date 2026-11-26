@@ -209,7 +209,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   <div class="db">
     <div class="meta" id="hCase"></div>
     <label><span data-t="hearDate"></span><input type="date" name="d"></label>
-    <label><span data-t="happened"></span><textarea name="note" rows="2" data-voice></textarea></label>
+    <label><span data-t="happened"></span><textarea name="note" rows="2" data-voice></textarea><div class="pick" data-pick="outcome"></div></label>
     <div class="g2"><label><span data-t="nextDate"></span><input type="date" name="next"><div class="pick" data-pick="jump"></div></label><label><span data-t="nextStage"></span><input name="stage"><div class="pick" data-pick="stage"></div></label></div>
     <label><span data-t="status"></span><select name="status"></select></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div>
@@ -245,6 +245,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <dialog id="icsDlg"><div class="dh"><h3 data-t="icsTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><p><b id="icsN"></b></p><p data-t="icsIos"></p><ol class="meta" style="margin:0;padding-inline-start:20px"><li data-t="icsStep1"></li><li data-t="icsStep2"></li><li data-t="icsStep3"></li></ol>
   <div class="acts"><button class="pri" type="button" data-a="ics" data-t="icsAgain"></button><button type="button" data-a="icsShare" data-t="icsSave"></button></div></div></dialog>
+<dialog id="waAllDlg"><div class="dh"><h3 data-t="waAllTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div><div class="db"><p class="meta" data-t="waAllHelp"></p><div class="hist" id="waAllList"></div></div></dialog>
+<dialog id="conflictDlg"><div class="dh"><h3 data-t="conflict"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div><div class="db"><p data-t="conflictWarn"></p><div class="hist" id="conflictList"></div><div class="acts"><button type="button" class="pri" data-a="saveAnyway" data-t="saveAnyway"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div></div></dialog>
 <dialog id="readyDlg"><div class="dh"><h3 data-t="readyShare"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><p id="readyName" class="meta"></p><div class="acts"><button class="pri" type="button" data-a="readyShare" data-t="shareNow"></button><button type="button" data-a="readyDl" data-t="download"></button></div></div></dialog>
 <input type="file" id="fileIn" accept="image/*,application/pdf" hidden>
@@ -252,8 +254,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <input type="file" id="xlIn" accept=".xlsx,.xls,.csv" hidden>
 <datalist id="courts"></datalist><datalist id="clientList"></datalist>
 <div class="toast" id="toast" role="status"></div>
-<script src="config.js?v=7"></script>
-<script src="i18n.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="config.js?v=8"></script>
+<script src="i18n.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
