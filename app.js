@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-const TODAY=iso(new Date());
+const TODAY=iso(new Date());const APPV='v11';
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -625,7 +625,8 @@ const daysSince=d=>d?Math.floor((new Date(TODAY+'T00:00')-new Date(d+'T00:00'))/
 function backupNote(){if(!cases.length)return '';const n=daysSince(settings.lastBackup);if(n<7)return '';return `<div class="note">${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <button class="sm" type="button" data-a="encBackup">${esc(t('backupNow'))}</button></div>`}
 function vSettings(){
   const al=settings.autoLock||5;
-  let h=`<div class="panel"><h3>${esc(t('security'))}</h3>${CLOUD?`<p class="meta">${esc(t('signedInAs'))} <b>${esc(C.email)}</b>${C.adv?'':' · '+esc(t('staffNote'))}</p>`:''}
+  let h=`<div class="panel"><h3>${esc(t('appVersion'))}: ${APPV}</h3><p class="meta">${esc(t('updHelp'))}</p><button class="pri" type="button" data-a="appUpdate">${esc(t('updNow'))}</button></div>`;
+  h+=`<div class="panel"><h3>${esc(t('security'))}</h3>${CLOUD?`<p class="meta">${esc(t('signedInAs'))} <b>${esc(C.email)}</b>${C.adv?'':' · '+esc(t('staffNote'))}</p>`:''}
   <form id="pwForm" class="g2" autocomplete="off"><label><span>${esc(t('oldPass'))}</span><input type="password" name="o" autocomplete="current-password"></label><label><span>${esc(t('newPass'))}</span><input type="password" name="n" autocomplete="new-password"></label><label><span>${esc(t('confirmPass'))}</span><input type="password" name="c" autocomplete="new-password"></label><div style="align-self:end"><button class="pri" type="submit">${esc(t('changePass'))}</button></div></form>
   <div class="bar" style="margin:14px 0 0"><label class="chk" style="gap:10px">${esc(t('autoLock'))}<select id="autoLock" style="width:auto">${[1,5,15,30].map(m=>`<option value="${m}" ${m===al?'selected':''}>${m} ${esc(t('minutes'))}</option>`).join('')}</select></label><button class="sm" type="button" data-a="lockNow">${esc(t('lockNow'))}</button></div></div>`;
   if(CLOUD&&C.adv)h+=`<div class="panel"><h3>${esc(t('team'))}</h3><p class="meta">${esc(t('teamHelp'))}</p><div class="hist" id="staffList"><div class="meta">…</div></div>
@@ -708,7 +709,7 @@ async function showLock(){
     try{const r=await C.fs.collection('keyrings').doc(C.email).get();C.ring=r.exists?r.data():null;mode=C.ring?'unlock':(C.adv?'setup':'wait')}catch(e){mode='wait';err.textContent=cErr(e)}}}
   LKMODE=mode;const show=(sel,on)=>{$(sel).style.display=on?'':'none'};
   $('#lkSub').textContent={login:t('loginSub'),setup:CLOUD?t('setupCloudSub'):t('setupSub'),unlock:CLOUD?t('signedInAs')+' '+C.email:t('unlockSub'),wait:t('waitAdd')}[mode];
-  show('#lkE',mode==='login');show('#lkP1',mode!=='wait');show('#lkC',mode==='setup');show('#lkBtn',mode!=='wait');show('#lkRetry',mode==='wait');show('#lkOut',CLOUD&&mode!=='login');
+  show('#lkE',mode==='login');show('#lkU',mode!=='login'&&mode!=='wait');f.un.value=CLOUD&&C.email?C.email:'MLA Diary';show('#lkP1',mode!=='wait');show('#lkC',mode==='setup');show('#lkBtn',mode!=='wait');show('#lkRetry',mode==='wait');show('#lkOut',CLOUD&&mode!=='login');
   $('#lkL1').textContent=mode==='login'?t('loginPass'):mode==='setup'?t('newPass'):t('password');
   $('#lkWarn').textContent=mode==='setup'?t('passWarn'):'';$('#lkBtn').textContent=mode==='login'?t('signIn'):mode==='setup'?t('setPass'):t('unlock');
   show('#lkErase',!CLOUD&&mode==='unlock');show('#lkRestore',!CLOUD);
@@ -717,7 +718,7 @@ async function showLock(){
   $('#lock').hidden=false;$('#appWrap').hidden=true;setTimeout(()=>{try{(mode==='login'?f.em:f.p1).focus()}catch(x){}},50);
 }
 async function opened(){
-  if(LASTP){S.pw=LASTP;LASTP=''}
+  if(LASTP){S.pw=LASTP;LASTP='';try{if(window.PasswordCredential&&navigator.credentials&&navigator.credentials.store)navigator.credentials.store(new PasswordCredential({id:CLOUD&&C.email?C.email:'MLA Diary',password:S.pw,name:'MLA Diary'})).catch(()=>{})}catch(x){}}
   $('#lock').hidden=true;$('#appWrap').hidden=false;view='clients';isAdmin=!CLOUD||!!C.fk;applyLang();bump();
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(x){}
   load(LIB.pdf).then(()=>load(LIB.at)).catch(()=>{});logo();
@@ -762,6 +763,7 @@ $('#eraseForm').addEventListener('submit',async e=>{e.preventDefault();if(E(e.ta
   S.key=null;S.meta=null;load_({});lock();toast(t('erased'))});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]');if(!el)return;const a=el.dataset.a;
   if(a==='lockNow')lock();
+  if(a==='appUpdate')appUpdate();
   if(a==='gcalConnect'){try{await gConnect('consent');settings.gcal={on:true,cal:(settings.gcal&&settings.gcal.cal)||'',h:(settings.gcal&&settings.gcal.h)||{}};await persist();await gSync(true)}catch(x){toast(t('gcalFail'))}}
   if(a==='gcalSync'){try{if(!gOK())await gConnect('');await gSync(true)}catch(x){toast(t('gcalFail'))}}
   if(a==='gcalOff'){settings.gcal={on:false,cal:settings.gcal&&settings.gcal.cal||'',h:{}};G.tok=null;await persist();render();toast(t('gcalOffDone'))}
@@ -784,7 +786,11 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   if(a==='eraseStart'){E($('#eraseForm')).reset();$('#eraseDlg').showModal()}
   if(a==='langLock'){LANG=LANG==='en'?'ur':'en';try{localStorage.setItem('mla_lang',LANG)}catch(x){}document.documentElement.lang=LANG;document.documentElement.dir=LANG==='ur'?'rtl':'ltr';$$('[data-t]').forEach(x=>x.textContent=t(x.dataset.t));showLock()}
 });
-if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+let SWREG=null;
+if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').then(r=>{SWREG=r;r.update().catch(()=>{});
+  r.addEventListener('updatefound',()=>{const w=r.installing;if(w)w.addEventListener('statechange',()=>{if(w.state==='activated'&&navigator.serviceWorker.controller)$('#updBar').style.display=''})})}).catch(()=>{});
+  setInterval(()=>{if(SWREG)SWREG.update().catch(()=>{})},30*60000)}
+async function appUpdate(){toast(t('working'));try{if(SWREG)await SWREG.update()}catch(x){}try{for(const k of await caches.keys())await caches.delete(k)}catch(x){}location.reload()}
 document.documentElement.lang=LANG;document.documentElement.dir=LANG==='ur'?'rtl':'ltr';$$('[data-t]').forEach(x=>x.textContent=t(x.dataset.t));
 (async()=>{if(CLOUD){try{await cInit()}catch(x){$('#lock').hidden=false;$('#lkErr').textContent=t('needOnline');return}}showLock()})();
 }

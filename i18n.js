@@ -1,5 +1,6 @@
 window.I18N={
 en:{
+diaryUser:"Diary",updReady:"A new version of MLA Diary is ready.",updNow:"Update app",appVersion:"App version",updHelp:"Gets the latest version now. Your data is not affected.",
 cantRead:"Client cannot read English — Urdu declaration and thumb impression on fee agreement",feeSaved:"Fee saved",rcptAsk:"Give the client a receipt now?",later:"Later",
 bioConfirm:"Confirm with Face ID once more to finish",bioStale:"Face ID details were out of date and have been cleared. Type your password, then turn Face ID on again in Settings.",
 roundSheet:"Munshi round sheet",waAll:"WhatsApp all clients",waAllTitle:"Hearing reminders to clients",waAllHelp:"Tap each WhatsApp button, send, then come back for the next client.",sent:"sent",conflict:"Possible conflict",conflictWarn:"This name already appears on the other side in your diary:",saveAnyway:"Save anyway",cfClientOpp:"Client is opposite party in",cfOppClient:"Opposite party is your client in",feeAgreement:"Fee agreement PDF",feeStatement:"Fee statement PDF",
@@ -58,6 +59,7 @@ waRem:"Hearing reminder",waRec:"Send receipt note",prev:"Previous month",next:"N
 nothingDay:"No hearings on this day.",untitledClient:"Unnamed client",lockFee:"Agreed fee",
 },
 ur:{
+diaryUser:"ڈائری",updReady:"MLA ڈائری کا نیا ورژن تیار ہے۔",updNow:"ایپ اپڈیٹ کریں",appVersion:"ایپ ورژن",updHelp:"ابھی تازہ ترین ورژن لے آئے گا۔ آپ کا ڈیٹا محفوظ رہے گا۔",
 cantRead:"موکل انگریزی نہیں پڑھ سکتا — فیس معاہدے پر اردو اقرار نامہ اور انگوٹھے کا نشان",feeSaved:"فیس محفوظ ہو گئی",rcptAsk:"موکل کو ابھی رسید دیں؟",later:"بعد میں",
 bioConfirm:"مکمل کرنے کے لیے ایک بار پھر فیس آئی ڈی سے تصدیق کریں",bioStale:"فیس آئی ڈی کی معلومات پرانی تھیں، صاف کر دی گئیں۔ پاس ورڈ لکھیں، پھر ترتیبات میں فیس آئی ڈی دوبارہ آن کریں۔",
 roundSheet:"منشی راؤنڈ شیٹ",waAll:"سب موکلین کو واٹس ایپ",waAllTitle:"موکلین کو تاریخ کی یاددہانی",waAllHelp:"ہر واٹس ایپ بٹن دبائیں، پیغام بھیجیں، پھر اگلے موکل کے لیے واپس آئیں۔",sent:"بھیج دیا",conflict:"ممکنہ ٹکراؤ",conflictWarn:"یہ نام آپ کی ڈائری میں دوسرے فریق کے طور پر پہلے سے موجود ہے:",saveAnyway:"پھر بھی محفوظ کریں",cfClientOpp:"موکل اس مقدمے میں فریقِ مخالف ہے",cfOppClient:"فریقِ مخالف اس مقدمے میں آپ کا موکل ہے",feeAgreement:"فیس معاہدہ PDF",feeStatement:"فیس اسٹیٹمنٹ PDF",
