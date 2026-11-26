@@ -130,7 +130,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     <button class="pri" type="submit" id="lkBtn"></button>
     <button class="ghost" type="button" id="lkBio" data-a="bioUnlock" data-t="faceUnlock" style="display:none"></button>
   </form>
-  <div class="acts"><button type="button" class="pri" id="lkRetry" data-a="lkRetry" data-t="retry" style="display:none"></button><button type="button" class="ghost sm" id="lkRestore" data-a="restoreStart" data-t="restore"></button><button type="button" class="ghost sm" id="lkOut" data-a="lkOut" data-t="signOut" style="display:none"></button><button type="button" class="ghost sm" data-a="eraseStart" id="lkErase" data-t="forgot"></button><button type="button" class="ghost sm" data-a="langLock" data-t="langBtn"></button></div>
+  <div class="acts"><button type="button" class="pri" id="lkRetry" data-a="lkRetry" data-t="retry" style="display:none"></button><button type="button" class="pri" id="lkHere" data-a="lkHere" data-t="useHere" style="display:none"></button><button type="button" class="ghost sm" id="lkRestore" data-a="restoreStart" data-t="restore"></button><button type="button" class="ghost sm" id="lkOut" data-a="lkOut" data-t="signOut" style="display:none"></button><button type="button" class="ghost sm" data-a="forgotStart" id="lkErase" data-t="forgot"></button><button type="button" class="ghost sm" data-a="langLock" data-t="langBtn"></button></div>
   <p class="meta" id="lkVer" style="text-align:center;font-size:12px"></p>
 </div></div>
 <div id="appWrap" hidden>
@@ -192,7 +192,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     </div>
     <label><span data-t="address"></span><input name="address"></label>
     <label><span data-t="notes"></span><textarea name="notes" rows="2" data-voice></textarea></label>
-    <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button><button type="button" class="ghost danger" data-a="delClient" id="delClientBtn" data-t="del"></button></div>
+    <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button><button type="button" class="ghost danger" data-a="delClient" id="delClientBtn" data-t="toArchive"></button></div>
     </div></details>
   </div>
 </form></dialog>
@@ -237,9 +237,20 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   <div class="db"><p class="note" id="rsWarn"></p>
     <label><span data-t="backupFile"></span><input type="file" id="restoreFile" accept=".json,application/json"></label>
     <label><span data-t="backupPass"></span><input type="password" name="rp" autocomplete="off"></label>
-    <div class="err" id="rsErr" role="alert"></div>
-    <div class="acts"><button class="pri" type="submit" id="rsBtn" data-t="restore"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div></div>
+    <label id="rsCurL" style="display:none"><span data-t="curPass"></span><input type="password" name="cp" autocomplete="off"></label>
+    <div class="err" id="rsErr" role="alert"></div><p class="meta" id="rsOk" style="color:var(--ok,#7bc47f)"></p>
+    <div class="acts"><button class="pri" type="submit" id="rsBtn" data-t="restore"></button><button type="button" data-a="rsTest" data-t="testOnly"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div></div>
 </form></dialog>
+<dialog id="forgotDlg"><form id="recForm" autocomplete="off">
+  <div class="dh"><h3 data-t="forgot"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><h4 data-t="useRec"></h4><p class="meta" data-t="useRecHelp"></p>
+    <label><span data-t="recCode"></span><input name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"></label>
+    <div class="err" id="recErr" role="alert"></div><div class="acts"><button class="pri" type="submit" data-t="unlock"></button></div>
+    <h4 style="margin-top:18px" data-t="eraseAll"></h4><p class="meta" id="erInfo"></p><div class="acts" id="erActs"></div></div>
+</form></dialog>
+<dialog id="recDlg"><div class="dh"><h3 data-t="recShowTitle"></h3></div>
+  <div class="db"><p data-t="recShowHelp"></p><p id="recCodeShow" style="font:700 22px/1.4 ui-monospace,Menlo,monospace;letter-spacing:1px;text-align:center;padding:14px;border:1px dashed var(--line);border-radius:10px;user-select:all"></p>
+  <div class="acts"><button type="button" class="pri" data-a="recPrint" data-t="recPrint"></button><button type="button" data-a="recDone" data-t="recDone"></button></div></div></dialog>
 <dialog id="eraseDlg"><form id="eraseForm">
   <div class="dh"><h3 data-t="erase"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><p data-t="eraseHelp"></p><label><span data-t="typeErase"></span><input name="w" autocomplete="off"></label>
@@ -259,8 +270,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <input type="file" id="xlIn" accept=".xlsx,.xls,.csv" hidden>
 <datalist id="courts"></datalist><datalist id="clientList"></datalist>
 <div class="toast" id="toast" role="status"></div>
-<script src="config.js?v=12"></script>
-<script src="i18n.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="config.js?v=13"></script>
+<script src="i18n.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-const TODAY=iso(new Date());const APPV='v12';
+let TODAY=iso(new Date());const APPV='v13';const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -30,14 +30,15 @@ async function idb(store,mode,fn){const d=await idbOpen();return new Promise((ok
 const idbGet=(st,k)=>idb(st,'readonly',s=>s.get(k)),idbPut=(st,k,v)=>idb(st,'readwrite',s=>s.put(v,k)),idbDel=(st,k)=>idb(st,'readwrite',s=>s.delete(k)),idbKeys=st=>idb(st,'readonly',s=>s.getAllKeys()),idbClear=st=>idb(st,'readwrite',s=>s.clear());
 const te=new TextEncoder(),tdec=new TextDecoder();
 const S={key:null,meta:null,pw:''};let LASTP='';
-async function deriveKey(pass,salt){const base=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function deriveKey(pass,salt,it){const base=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:it||310000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
 async function enc(key,bytes){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes);return{iv,ct:new Uint8Array(ct)}}
 async function dec(key,o){return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:o.iv},key,o.ct))}
 const encJ=(k,obj)=>enc(k,te.encode(JSON.stringify(obj))),decJ=async(k,o)=>JSON.parse(tdec.decode(await dec(k,o)));
 const b64=u=>{let s='';const c=0x8000;for(let i=0;i<u.length;i+=c)s+=String.fromCharCode.apply(null,u.subarray(i,i+c));return btoa(s)};
 const unb64=s=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
 let saving=Promise.resolve();
-function persist(){const snap={clients,cases,fees,settings};saving=saving.then(async()=>{if(!S.key)return;if(CLOUD)await idbPut('kv','settings_'+C.email,settings);else await idbPut('kv','state',await encJ(S.key,snap))}).catch(()=>toast('Could not save on this device — storage may be full'));return saving}
+const snapOf=()=>({schema:1,clients:[...clients,...arc.clients],cases:[...cases,...arc.cases],fees,settings});
+function persist(){const snap=snapOf();saving=saving.then(async()=>{if(!S.key)return;if(CLOUD)await idbPut('kv','settings_'+C.email,settings);else await idbPut('kv','state',await encJ(S.key,snap))}).catch(()=>toast('Could not save on this device — storage may be full'));return saving}
 const A={db:true};
 const CFG=(window.MLA_CLOUD&&window.MLA_CLOUD.firebase)?window.MLA_CLOUD:null,CLOUD=!!CFG;
 const C={fs:null,auth:null,email:'',adv:false,ok:null,fk:null,oraw:'',fraw:'',ring:null,unsub:[],cache:new Map(),q:Promise.resolve()};
@@ -48,7 +49,8 @@ const rawKey=b=>crypto.subtle.importKey('raw',unb64(b),'AES-GCM',false,['encrypt
 const rnd=n=>b64(crypto.getRandomValues(new Uint8Array(n)));
 function cErr(e){const c=e&&e.code||'';return c.includes('permission')?t('noPerm'):c.includes('unavailable')?t('needOnline'):(e&&e.message)||'Error'}
 
-let clients=[],cases=[],fees={},settings={},isAdmin=true,canWrite=true;
+let clients=[],cases=[],fees={},settings={},isAdmin=true,canWrite=true,arc={cases:[],clients:[]};
+function moveArc(){const ca=[...cases,...arc.cases],cl=[...clients,...arc.clients];cases=ca.filter(x=>!x.archived);arc.cases=ca.filter(x=>x.archived);clients=cl.filter(x=>!x.archived);arc.clients=cl.filter(x=>x.archived)}
 let view='diary',curId=null,curClient=null,calM=TODAY.slice(0,7),calDay=TODAY,moneyKind='pay';
 const ui={q:'',f:'Active',cq:'',cause:addDays(TODAY,1)};
 
@@ -57,7 +59,7 @@ const paid=id=>(F(id).payments||[]).reduce((a,p)=>a+(+p.amt||0),0);
 const expB=id=>(F(id).expenses||[]).filter(e=>e.bill!==false).reduce((a,e)=>a+(+e.amt||0),0);
 const owed=id=>(+F(id).fee||0)+expB(id);
 const bal=id=>Math.max(0,owed(id)-paid(id));
-const cli=id=>clients.find(c=>c.id===id)||{};
+const cli=id=>clients.find(c=>c.id===id)||arc.clients.find(c=>c.id===id)||{};
 const cname=c=>cli(c.clientId).name||'';
 const cphone=c=>cli(c.clientId).phone||'';
 const ctitle=c=>c.title||(cname(c)?cname(c)+' — '+t('untitled'):t('untitled'));
@@ -71,7 +73,7 @@ function status(m){const s=$('#status');s.textContent=m||'';s.style.display=m?''
 
 /* ---------- writes ---------- */
 function applyLocal(coll,id,d){if(coll==='fees')fees[id]=d;else{const arr=coll==='cases'?cases:clients;const i=arr.findIndex(x=>x.id===id);const o={id,...d};if(i<0)arr.push(o);else arr[i]=o}}
-function applyDel(coll,id){if(coll==='fees')delete fees[id];else if(coll==='cases')cases=cases.filter(x=>x.id!==id);else clients=clients.filter(x=>x.id!==id)}
+function applyDel(coll,id){if(coll==='fees')delete fees[id];else if(coll==='cases'){cases=cases.filter(x=>x.id!==id);arc.cases=arc.cases.filter(x=>x.id!==id)}else{clients=clients.filter(x=>x.id!==id);arc.clients=arc.clients.filter(x=>x.id!==id)}}
 async function put(coll,id,data){
   if(!S.key){toast(t('locked'));return false}
   const d={...clone(data),updated:new Date().toISOString()};
@@ -85,6 +87,21 @@ async function put(coll,id,data){
 async function del(coll,id){if(!S.key)return false;
   if(CLOUD){C.cache.delete(id);C.fs.collection(coll==='fees'?'fees':'records').doc(id).delete().catch(e=>toast(cErr(e)))}
   applyDel(coll,id);if(!CLOUD)await persist();render();gQueue();return true}
+async function archiveRec(coll,id){const arr=coll==='cases'?cases:clients;const o=arr.find(x=>x.id===id);if(!o)return false;const at=new Date().toISOString();
+  if(!await put(coll,id,{...strip(o),archived:at}))return false;
+  if(coll==='clients')for(const c of cases.filter(c=>c.clientId===id))await put('cases',c.id,{...strip(c),archived:at});
+  moveArc();render();return true}
+async function unarchive(coll,id){const o=arc[coll].find(x=>x.id===id);if(!o)return;arc[coll]=arc[coll].filter(x=>x.id!==id);const d=strip(o);const at=d.archived;delete d.archived;await put(coll,id,d);
+  if(coll==='clients')for(const c of arc.cases.filter(c=>c.clientId===id&&c.archived===at))await unarchive('cases',c.id);
+  if(coll==='cases'&&o.clientId&&arc.clients.some(x=>x.id===o.clientId))await unarchive('clients',o.clientId);
+  moveArc();render()}
+async function purge(coll,id){
+  if(coll==='clients'){if(cases.some(c=>c.clientId===id)){toast(t('purgeBlocked'));return}for(const c of arc.cases.filter(c=>c.clientId===id))await purge('cases',c.id)}
+  else{const o=arc.cases.find(x=>x.id===id);for(const doc of (o&&o.docs)||[]){try{if(CLOUD&&!doc.local)C.fs.collection('files').doc(doc.id).delete().catch(()=>{});else await idbDel('files',doc.id)}catch(x){}}if(fees[id])await del('fees',id)}
+  await del(coll,id);toast(t('deleted'))}
+function vArchive(){if(!isAdmin)return '';const n=arc.cases.length+arc.clients.length;
+  const row=(k,x,label)=>`<div><b>${esc(label)}</b> <span class="meta">${esc(t(k==='cases'?'caseWord':'client'))} · ${fd(String(x.archived||'').slice(0,10))}</span><span class="sp"></span><button class="sm" type="button" data-a="unarc" data-k="${k}" data-id="${esc(x.id)}">${esc(t('restoreItem'))}</button><button class="sm ghost danger" type="button" data-a="purge" data-k="${k}" data-id="${esc(x.id)}">${esc(t('delForever'))}</button></div>`;
+  return `<div class="panel"><h3>${esc(t('archive'))} · ${n}</h3><p class="meta">${esc(t('archiveHelp'))}</p><div class="hist">${n?[...arc.clients.map(c=>row('clients',c,c.name||t('untitledClient'))),...arc.cases.map(c=>row('cases',c,ctitle(c)+(cname(c)?' · '+cname(c):'')))].join(''):`<div class="meta">${esc(t('archiveEmpty'))}</div>`}</div></div>`}
 const newId=()=>Date.now().toString(36)+crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
 
 /* ---------- WhatsApp ---------- */
@@ -97,13 +114,15 @@ const loaded={};
 function load(src){return loaded[src]||(loaded[src]=new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>{delete loaded[src];no(new Error('load'))};document.head.appendChild(s)}))}
 const MIME={ics:'text/calendar',pdf:'application/pdf',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',json:'application/json',mladiary:'application/octet-stream'};
 const mobile=()=>matchMedia('(pointer:coarse)').matches;
-function download(file){const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},5000)}
+let EXTUNTIL=0;const ext=()=>{EXTUNTIL=Date.now()+10*60000};
+function download(file){ext();const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},5000)}
 let READY=null;
 async function shareOrSave(name,data,opt={}){
-  const ext=name.split('.').pop();const file=new File([data],name,{type:MIME[ext]||'application/octet-stream'});
+  ext();const fx=name.split('.').pop();const file=new File([data],name,{type:MIME[fx]||'application/octet-stream'});
   if((opt.share||mobile())&&navigator.canShare&&navigator.canShare({files:[file]})){
     try{await navigator.share({files:[file],...(opt.text?{text:opt.text}:{})});return}catch(e){if(e&&e.name==='AbortError')return;if(e&&e.name==='NotAllowedError'){READY={file,opt};$('#readyName').textContent=name;$('#readyDlg').showModal();return}}}
-  download(file);if(opt.wa)setTimeout(()=>window.open(opt.wa,'_blank'),400)}
+  download(file);if(opt.wa)setTimeout(()=>window.open(opt.wa,'_blank'),400);if(opt.mail)setTimeout(()=>window.open('https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(settings.backupMail||BKMAIL)+'&su='+encodeURIComponent(opt.text||name)+'&body='+encodeURIComponent(t('mailAttach')+' '+name),'_blank'),600)}
+const BKMAIL='mianlawassociates1@gmail.com';
 const saveFile=(name,data)=>shareOrSave(name,data);
 let LOGO=null;
 async function logo(){if(LOGO)return LOGO;try{const b=await (await fetch('icons/logo.jpg')).blob();LOGO=await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)})}catch(x){LOGO=''}return LOGO}
@@ -334,7 +353,7 @@ function render(){
   $('#tabs').innerHTML=TABS.filter(([v])=>v!=='fee'||isAdmin).map(([v,k])=>`<button type="button" data-a="tab" data-v="${v}" class="${v===view?'on':''}">${esc(t(k))}</button>`).join('');
   if(!S.key)return;
   const V={diary:vDiary,calendar:vCal,cases:vCases,clients:vClients,fee:vFee,reports:vReports,settings:vSettings};
-  $('#view').innerHTML=((view==='diary'||view==='clients')?gBanner()+backupNote():'')+(V[view]||vDiary)();if(view==='settings')storeInfo();
+  $('#view').innerHTML=(view!=='settings'?gBanner()+backupNote():'')+(V[view]||vDiary)();if(view==='settings')storeInfo();
   $('#courts').innerHTML=[...new Set(cases.map(c=>c.court).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('');
   $('#clientList').innerHTML=clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||'')}</option>`).join('');
   if(curId&&$('#detDlg').open)detail(curId);
@@ -371,7 +390,7 @@ function detail(id){
   if(dls.length)h+=`<h4>${esc(t('deadlines'))}</h4><div class="hist">${dls.map(x=>`<div class="${x.done?'p':x.d<=TODAY?'x':''}"><b>${fd(x.d)}</b> ${esc(x.label||'')}${x.done?' ✓':''}<span class="sp"></span>${x.done?'':`<button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(id)}" data-i="${x.i}">${esc(t('done'))}</button>`}</div>`).join('')}</div>`;
   h+=`<h4>${esc(t('docs'))}</h4><div class="hist">${(c.docs||[]).length?(c.docs||[]).map((d,i)=>`<div><a href="#" data-a="viewDoc" data-i="${i}">${esc(d.name||'Document')}</a> <span class="meta">${fd(d.d)}</span><span class="sp"></span>${isAdmin?`<button class="sm ghost danger" type="button" data-a="delDoc" data-i="${i}">${esc(t('del'))}</button>`:''}</div>`).join(''):`<div class="meta">${esc(t('noDocs'))}</div>`}</div>`;
   h+=`<h4>${esc(t('hearHist'))}</h4><div class="hist">${hs.length?hs.map(x=>`<div><b>${fd(x.d)}</b> — ${esc(x.note||'—')}${x.next?` <span class="meta">→ ${fd(x.next)}</span>`:''}</div>`).join(''):`<div class="meta">${esc(t('noHear'))}</div>`}</div>`;
-  h+=`<div style="border-top:1px solid var(--line);padding-top:12px"><button class="sm ghost danger" type="button" data-a="delCase">${esc(t('del'))}</button></div>`;
+  if(isAdmin)h+=`<div style="border-top:1px solid var(--line);padding-top:12px"><button class="sm ghost danger" type="button" data-a="delCase">${esc(t('toArchive'))}</button></div>`;
   $('#dBody').innerHTML=h;
   if(!$('#detDlg').open)$('#detDlg').showModal();
 }
@@ -400,7 +419,7 @@ async function findOrMakeClient(name,phone){
 let CONFLICT_OK=false;
 const nm=s=>String(s||'').toLowerCase().replace(/[^a-z\u0600-\u06ff ]/g,' ').replace(/\s+/g,' ').trim();
 function conflicts(client,opp,selfId){const out=[];const c=nm(client),o=nm(opp);
-  for(const x of cases){if(x.id===selfId)continue;const xo=nm(x.opp),xc=nm(cname(x));
+  for(const x of [...cases,...arc.cases]){if(x.id===selfId)continue;const xo=nm(x.opp),xc=nm(cname(x));
     if(c.length>3&&xo&&(xo.includes(c)||c.includes(xo)&&xo.length>3))out.push(t('cfClientOpp')+': '+ctitle(x));
     if(o.length>3&&xc&&(xc.includes(o)||o.includes(xc)&&xc.length>3))out.push(t('cfOppClient')+': '+ctitle(x)+' ('+cname(x)+')')}return [...new Set(out)]}
 E($('#caseForm')).addEventListener('submit',async e=>{e.preventDefault();
@@ -421,7 +440,7 @@ function openClient(id){const f=E($('#clientForm'));f.reset();curClient=id||null
   $('#clTitle').textContent=c?(c.name||t('untitledClient')):t('clientNew');
   if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';f.noread.checked=!!(c&&c.noread);addMics();
   $('#clEdit').open=!c;
-  $('#delClientBtn').style.display=c&&isAdmin?'':'none';delete $('#delClientBtn').dataset.sure;$('#delClientBtn').textContent=t('del');
+  $('#delClientBtn').style.display=c&&isAdmin?'':'none';delete $('#delClientBtn').dataset.sure;$('#delClientBtn').textContent=t('toArchive');
   clientCases(id);if(!$('#clientDlg').open)$('#clientDlg').showModal()}
 function nextInst(cid){let cum=0;const pd=paid(cid);for(const p of (F(cid).plan||[]).slice().sort((a,b)=>a.d<b.d?-1:1)){cum+=+p.amt||0;if(cum>pd)return{...p,due:Math.min(+p.amt||0,cum-pd)}}return null}
 const dl=d=>{const n=daysLeft(d);return n<0?`<span class="danger">${esc(t('overdue'))}</span>`:n===0?esc(t('today')):n+' '+esc(t('daysLeft'))};
@@ -457,7 +476,7 @@ function openMoney(kind,id){moneyKind=kind;curId=id;const c=byId(id),f=E($('#mon
   $('#mCase').textContent=ctitle(c)+' · '+t('balance')+' '+rs(bal(id));addMics();$('#moneyDlg').showModal()}
 E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=+f.amt.value||0;if(!amt){f.amt.focus();return}
   const fz=strip(F(id));const item={d:f.d.value||TODAY,amt,note:f.note.value.trim()};let key='payments';
-  if(moneyKind==='pay'){item.mode=f.mode.value;const y=item.d.slice(0,4);const n=allPays().filter(p=>(p.rno||'').startsWith('MLA-'+y)).map(p=>+p.rno.split('-')[2]||0);item.rno='MLA-'+y+'-'+pad4(Math.max(0,...n)+1)}
+  if(moneyKind==='pay'){item.mode=f.mode.value;const y=item.d.slice(0,4);const n=Object.values(fees).flatMap(z=>z.payments||[]).filter(p=>(p.rno||'').startsWith('MLA-'+y)).map(p=>+p.rno.split('-')[2]||0);item.rno='MLA-'+y+'-'+pad4(Math.max(0,...n)+1)}
   else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else{key='plan';item.rem=Math.max(0,+f.rem.value||0)}
   fz[key]=[...(fz[key]||[]),item];
   if(await put('fees',id,fz)){$('#moneyDlg').close();if(moneyKind==='pay'){const idx=fz.payments.length-1;$('#rcptInfo').textContent=rs(amt)+' · '+item.rno+' · '+cname(byId(id));$$('#rcptDlg [data-a=receipt]').forEach(b=>{b.dataset.id=id;b.dataset.i=idx});$('#rcptDlg').showModal()}else toast(t('saved'))}});
@@ -491,8 +510,10 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'scan':$('#camIn').value='';$('#camIn').click();break;
   case 'upload':$('#fileIn').value='';$('#fileIn').click();break;
   case 'delDoc':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const c=byId(curId),d=strip(c),doc=(d.docs||[])[i];if(!doc)break;d.docs.splice(i,1);if(await put('cases',curId,d)){try{if(CLOUD&&!doc.local)C.fs.collection('files').doc(doc.id).delete().catch(()=>{});else await idbDel('files',doc.id)}catch(x){}toast(t('deleted'))}break}
-  case 'delCase':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const cid=curId;if(await del('cases',cid)){if(fees[cid]&&isAdmin)await del('fees',cid);$('#detDlg').close();curId=null;toast(t('deleted'))}break}
-  case 'delClient':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}if(curClient&&await del('clients',curClient)){$('#clientDlg').close();curClient=null;toast(t('deleted'))}break}
+  case 'delCase':{if(!isAdmin)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const cid=curId;if(await archiveRec('cases',cid)){$('#detDlg').close();curId=null;toast(t('archived'))}break}
+  case 'delClient':{if(!isAdmin)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}if(curClient&&await archiveRec('clients',curClient)){$('#clientDlg').close();curClient=null;toast(t('archived'))}break}
+  case 'unarc':if(isAdmin){await unarchive(el.dataset.k,id);toast(t('restoredItem'))}break;
+  case 'purge':{if(!isAdmin)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}await purge(el.dataset.k,id);break}
   case 'calPrev':case 'calNext':{const [y,m]=calM.split('-').map(Number);const d=new Date(y,m-1+(a==='calNext'?1:-1),1);calM=iso(d).slice(0,7);render();break}
   case 'calDay':calDay=el.dataset.d;if(calDay.slice(0,7)!==calM)calM=calDay.slice(0,7);render();break;
   case 'causePdf':causeList('pdf');break;case 'roundSheet':causeList('round');break;
@@ -522,35 +543,39 @@ async function fileBytes(doc){
   const o=await idbGet('files',doc.id);if(!o)return null;return{type:o.type,bytes:await dec(CLOUD?C.ok:S.key,o)}}
 async function viewDoc(i){const c=byId(curId);const doc=c&&(c.docs||[])[i];if(!doc)return;
   try{const f=await fileBytes(doc);if(!f){toast(t('fileMissing'));return}const blob=new Blob([f.bytes],{type:f.type});openBlob(blob,doc.name)}catch(x){toast(CLOUD?t('needOnline'):'Could not open file')}}
-function openBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';if(!/^image\/|pdf/.test(blob.type))a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},120000)}
+function openBlob(blob,name){ext();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';if(!/^image\/|pdf/.test(blob.type))a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},120000)}
 document.addEventListener('input',e=>{const id=e.target.id;if(id==='q'||id==='cq'){ui[id]=e.target.value;const p=e.target.selectionStart;render();const n=$('#'+id);n.focus();try{n.setSelectionRange(p,p)}catch(x){}}});
 document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.f==='task'){const o=e.target.parentElement.querySelector('[data-f=label]');o.style.display=e.target.value==='Other'?'':'none'}if(e.target.id==='f'){ui.f=e.target.value;render()}if(e.target.id==='causeD')ui.cause=e.target.value});
 
 /* ---------- backup / restore ---------- */
 const pack=o=>({iv:b64(o.iv),ct:b64(o.ct),...(o.type?{type:o.type}:{})}),unpack=o=>({iv:unb64(o.iv),ct:unb64(o.ct),...(o.type?{type:o.type}:{})});
+const packMeta=m=>({salt:b64(m.salt),ver:pack(m.ver),...(m.it?{it:m.it}:{}),...(m.rec?{rec:{salt:b64(m.rec.salt),blob:pack(m.rec.blob),made:m.rec.made||''}}:{})});
+const unpackMeta=m=>({salt:unb64(m.salt),ver:unpack(m.ver),...(m.it?{it:+m.it}:{}),...(m.rec?{rec:{salt:unb64(m.rec.salt),blob:unpack(m.rec.blob),made:m.rec.made||''}}:{})});
 async function encBackup(){
-  if(!S.key)return;await saving;toast(t('working'));
+  if(!S.key&&CLOUD)return;await saving;toast(t('working'));
   try{let out;
-    if(!CLOUD){const meta=await idbGet('kv','meta'),state=await idbGet('kv','state'),keys=await idbKeys('files');
+    if(!CLOUD){const meta=await idbGet('kv','meta'),state=await idbGet('kv','state'),keys=await idbKeys('files');if(!meta||!state){toast(t('nothingToBackup'));return}
       const files=[];for(const k of keys){const o=await idbGet('files',k);if(o)files.push({id:k,...pack(o)})}
-      out={app:'mla-diary',v:1,created:new Date().toISOString(),meta:{salt:b64(meta.salt),ver:pack(meta.ver)},state:pack(state),files}}
+      out={app:'mla-diary',v:1,schema:1,created:new Date().toISOString(),meta:packMeta(meta),state:pack(state),files}}
     else{const data={clients,cases,fees:C.fk?fees:{},settings};const files=[];
       for(const c of cases)for(const d of c.docs||[]){try{const f=await fileBytes(d);if(f){const o=await enc(S.key,f.bytes);o.type=f.type;files.push({id:d.id,...pack(o)})}}catch(x){}}
       out={app:'mla-diary',v:1,created:new Date().toISOString(),meta:{salt:C.ring.salt,ver:pack(unpk(C.ring.ver))},state:pack(await encJ(S.key,data)),files}}
-    await saveFile('MLA-Diary-backup-'+TODAY+'.json',JSON.stringify(out));
-    settings.lastBackup=TODAY;await persist();render();toast(t('backupMade'))}
+    await shareOrSave('MLA-Diary-backup-'+TODAY+'.json',JSON.stringify(out),{text:'MLA Diary backup '+fd(TODAY),mail:1});
+    if(S.key){settings.lastBackup=TODAY;await persist();render()}toast(t('backupMade'))}
   catch(e){toast(CLOUD?t('needOnline'):'Backup failed')}
 }
 async function readBackup(file,pass){
   let o;try{o=JSON.parse(await file.text())}catch(x){throw new Error(t('badFile'))}
   if(!o||o.app!=='mla-diary'||!o.meta||!o.state)throw new Error(t('badFile'));
-  const meta={salt:unb64(o.meta.salt),ver:unpack(o.meta.ver)};const key=await deriveKey(pass,meta.salt);
+  const meta=unpackMeta(o.meta);let pw=pass;if(meta.rec&&isRecCode(pass)){try{pw=await recOpen(meta.rec,pass)}catch(x){}}
+  const key=await deriveKey(pw,meta.salt,meta.it);
   try{await dec(key,meta.ver)}catch(x){throw new Error(t('wrongPass'))}
-  const st=unpack(o.state);return{o,meta,key,st,data:await decJ(key,st)}}
-async function doRestore(file,pass){
-  const b=await readBackup(file,pass);
+  const st=unpack(o.state);return{o,meta,key,st,pw,data:await decJ(key,st)}}
+async function doRestore(file,pass,pre){
+  const b=pre||await readBackup(file,pass);
   if(!CLOUD){await idbClear('files');for(const f of b.o.files||[])await idbPut('files',f.id,unpack(f));
-    await idbPut('kv','meta',b.meta);await idbPut('kv','state',b.st);S.key=b.key;S.meta=b.meta;load_(b.data);return}
+    await idbPut('kv','meta',b.meta);await idbPut('kv','state',b.st);S.key=b.key;S.meta=b.meta;load_(b.data);
+    if(!(b.meta.it>=IT)){status(t('upgrading'));try{await rekey(b.pw,true)}finally{status('')}}return}
   // cloud: upload everything into the shared office data
   const d=b.data;let n=0;
   for(const c of d.clients||[]){const {id,...r}=c;await put('clients',id,r);n++}
@@ -558,7 +583,7 @@ async function doRestore(file,pass){
     await put('cases',id,r);n++}
   if(C.fk)for(const [id,f] of Object.entries(d.fees||{}))await put('fees',id,f);
   toast(t('restored')+' · '+n)}
-function load_(d){clients=d.clients||[];cases=d.cases||[];fees=d.fees||{};settings=d.settings||{}}
+function load_(d){clients=d.clients||[];cases=d.cases||[];fees=d.fees||{};settings=d.settings||{};arc={cases:[],clients:[]};moveArc()}
 
 /* ---------- Excel import ---------- */
 const ALIAS={client:['client','client name','name','party','موکل'],phone:['phone','mobile','contact','cell','whatsapp','فون'],cnic:['cnic','id card'],email:['email','e-mail'],title:['case','case title','title','case name','عنوان'],caseNo:['case no','case no.','case number','caseno','suit no'],opp:['opposite party','respondent','defendant','vs','versus'],fir:['fir','fir no','fir no.'],ps:['police station','ps','thana'],sections:['sections','section','offence','u/s'],court:['court','عدالت'],judge:['judge'],type:['type','category','nature','case type'],status:['status'],filed:['filed','filing date','institution date','instituted'],nextDate:['next date','next hearing','hearing date','date','next','تاریخ'],stage:['stage','for','purpose','proceedings'],fee:['agreed fee','fee','total fee','fees'],received:['received','paid','fee received','advance'],notes:['notes','remarks','note']};
@@ -609,7 +634,7 @@ async function cInit(){for(const f of ['vendor/firebase-app-compat.js','vendor/f
   firebase.initializeApp(CFG.firebase);C.auth=firebase.auth();C.fs=firebase.firestore();try{await C.fs.enablePersistence({synchronizeTabs:true})}catch(x){}
   await new Promise(r=>{const u=C.auth.onAuthStateChanged(()=>{u();r()})})}
 function cUnsub(){C.unsub.forEach(u=>{try{u()}catch(x){}});C.unsub=[]}
-function cRebuild(){const cs=[],cl=[];for(const [id,v] of C.cache){if(!v.o)continue;(v.k==='case'?cs:cl).push({id,...v.o})}cases=cs;clients=cl}
+function cRebuild(){const cs=[],cl=[];for(const [id,v] of C.cache){if(!v.o)continue;(v.k==='case'?cs:cl).push({id,...v.o})}cases=cs;clients=cl;arc={cases:[],clients:[]};moveArc()}
 function cSubscribe(){cUnsub();C.cache.clear();clients=[];cases=[];fees={};let first=0;const need=C.fk?2:1;const timer=setTimeout(()=>status(t('offline')),12000);
   const ready=()=>{if(++first>=need){clearTimeout(timer);status('')}};let r1=0,r2=0;
   C.unsub.push(C.fs.collection('records').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.cache.delete(id);continue}const d=ch.doc.data();const c=C.cache.get(id);if(c&&c.p===d.p)continue;try{C.cache.set(id,{k:d.k,p:d.p,o:await decS(C.ok,d.p)})}catch(x){}}cRebuild();if(!snap.metadata.fromCache&&!r1++)ready();render()})},e=>{clearTimeout(timer);status(cErr(e))}));
@@ -622,21 +647,23 @@ async function addStaff(email,pass){email=email.trim().toLowerCase();if(!/^\S+@\
 
 /* ---------- settings view ---------- */
 const daysSince=d=>d?Math.floor((new Date(TODAY+'T00:00')-new Date(d+'T00:00'))/864e5):Infinity;
-function backupNote(){if(!cases.length)return '';const n=daysSince(settings.lastBackup);if(n<7)return '';return `<div class="note">${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <button class="sm" type="button" data-a="encBackup">${esc(t('backupNow'))}</button></div>`}
+function backupNote(){if(!cases.length&&!clients.length)return '';const n=daysSince(settings.lastBackup);if(n<7)return '';return `<div class="note">${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <button class="sm" type="button" data-a="encBackup">${esc(t('backupNow'))}</button></div>`}
 function vSettings(){
   const al=settings.autoLock||5;
   let h=`<div class="panel"><h3>${esc(t('appVersion'))}: ${APPV}</h3><p class="meta">${esc(t('updHelp'))}</p><button class="pri" type="button" data-a="appUpdate">${esc(t('updNow'))}</button></div>`;
   h+=`<div class="panel"><h3>${esc(t('security'))}</h3>${CLOUD?`<p class="meta">${esc(t('signedInAs'))} <b>${esc(C.email)}</b>${C.adv?'':' · '+esc(t('staffNote'))}</p>`:''}
   <form id="pwForm" class="g2" autocomplete="off"><label><span>${esc(t('oldPass'))}</span><input type="password" name="o" autocomplete="current-password"></label><label><span>${esc(t('newPass'))}</span><input type="password" name="n" autocomplete="new-password"></label><label><span>${esc(t('confirmPass'))}</span><input type="password" name="c" autocomplete="new-password"></label><div style="align-self:end"><button class="pri" type="submit">${esc(t('changePass'))}</button></div></form>
-  <div class="bar" style="margin:14px 0 0"><label class="chk" style="gap:10px">${esc(t('autoLock'))}<select id="autoLock" style="width:auto">${[1,5,15,30].map(m=>`<option value="${m}" ${m===al?'selected':''}>${m} ${esc(t('minutes'))}</option>`).join('')}</select></label><button class="sm" type="button" data-a="lockNow">${esc(t('lockNow'))}</button></div></div>`;
+  <div class="bar" style="margin:14px 0 0"><label class="chk" style="gap:10px">${esc(t('autoLock'))}<select id="autoLock" style="width:auto">${[1,5,15,30].map(m=>`<option value="${m}" ${m===al?'selected':''}>${m} ${esc(t('minutes'))}</option>`).join('')}</select></label><label class="chk" style="gap:10px">${esc(t('hideLock'))}<select id="hideLock" style="width:auto">${[0,2,10].map(m=>`<option value="${m}" ${m===(+settings.hideLock||0)?'selected':''}>${m?esc(t('hideAfter'))+' '+m+' '+esc(t('minutes')):esc(t('hideNow'))}</option>`).join('')}</select></label><button class="sm" type="button" data-a="lockNow">${esc(t('lockNow'))}</button></div></div>`;
+  if(!CLOUD)h+=`<div class="panel"><h3>${esc(t('recTitle'))}</h3><p class="meta">${esc(t('recHelp'))}</p><p>${S.meta&&S.meta.rec?esc(t('recMadeOn'))+' <b>'+fd(S.meta.rec.made)+'</b>':'<b class="danger">'+esc(t('recNone'))+'</b>'}</p><button class="${S.meta&&S.meta.rec?'':'pri'}" type="button" data-a="recMake">${esc(S.meta&&S.meta.rec?t('recRemake'):t('recMake'))}</button></div>`;
   if(CLOUD&&C.adv)h+=`<div class="panel"><h3>${esc(t('team'))}</h3><p class="meta">${esc(t('teamHelp'))}</p><div class="hist" id="staffList"><div class="meta">…</div></div>
     <form id="staffForm" class="g2" style="margin-top:10px" autocomplete="off"><label><span>${esc(t('munshiEmail'))}</span><input name="e" type="email" inputmode="email"></label><label><span>${esc(t('tempPass'))}</span><input name="p" type="text" autocomplete="off"></label><div style="align-self:end"><button class="pri" type="submit">${esc(t('addMunshi'))}</button></div></form></div>`;
   h+=`<div class="panel"><h3>${esc(t('faceId'))}</h3><p class="meta">${esc(t('bioHelp'))}</p><div id="bioBox" class="acts"></div></div>`;
   h+=gPanel();
   h+=`<div class="panel"><h3>${esc(t('reminders'))}</h3><p class="meta">${esc(t('icsHelp'))}</p><p class="meta">${esc(t('lastIcs'))}: <b>${settings.icsAt?fd(settings.icsAt):esc(t('never'))}</b></p><button class="pri" type="button" data-a="ics">${esc(t('icsBtn'))}</button></div>`;
   h+=`<div class="panel"><h3>${esc(t('importExcel'))}</h3><p class="meta">${esc(t('importHelp'))}</p>`+(IMPORT?`<div class="note">${esc(t('importFound'))}: <b>${IMPORT.length}</b> — ${IMPORT.slice(0,3).map(r=>esc(r.title||r.client)).join(', ')}${IMPORT.length>3?'…':''}</div><div class="acts"><button class="pri" type="button" data-a="runImport">${esc(t('importNow'))}</button><button type="button" class="ghost" data-a="cancelImport">${esc(t('cancel'))}</button></div>`:`<div class="acts"><button type="button" data-a="pickExcel">${esc(t('importExcel'))}</button><button type="button" class="ghost" data-a="xlTemplate">${esc(t('template'))}</button></div>`)+`</div>`;
-  h+=`<div class="panel"><h3>${esc(t('backup'))}</h3><p class="meta">${esc(t('backupHelp'))}</p><p>${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b></p>
+  h+=`<div class="panel"><h3>${esc(t('backup'))}</h3><p class="meta">${esc(t('backupHelp'))}</p><p>${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <span class="meta">${esc(t('backupMail'))}: ${esc(settings.backupMail||BKMAIL)}</span></p>
   <div class="acts"><button class="pri" type="button" data-a="encBackup">${esc(t('backupNow'))}</button><button type="button" data-a="restoreStart">${esc(CLOUD?t('importBackup'):t('restore'))}</button><button type="button" data-a="backup">${esc(t('exportExcel'))}</button></div></div>
+  ${vArchive()}
   <div class="panel"><h3>${esc(t('device'))}</h3><p class="meta">${esc(CLOUD?t('cloudOn'):t('localOnly'))}</p><p class="meta" id="storeInfo"></p><p class="meta">${esc(t('installHint'))}</p></div>
   <div class="panel"><h3 class="danger">${esc(CLOUD?t('removeDevice'):t('erase'))}</h3><p class="meta">${esc(CLOUD?t('removeDeviceHelp'):t('eraseHelp'))}</p><button type="button" class="ghost danger" data-a="eraseStart">${esc(CLOUD?t('removeDevice'):t('erase'))}</button></div>`;
   return h}
@@ -655,9 +682,9 @@ async function gid(key){const h=new Uint8Array(await crypto.subtle.digest('SHA-2
 const at9=n=>n>0?n*1440-540:0;
 function gEvents(){const ev=[];const allDay=(d)=>({start:{date:d},end:{date:addDays(d,1)}});
   for(const c of cases.filter(c=>c.status==='Active')){const who=cname(c),ph=cphone(c);
-    if(c.nextDate)ev.push({key:'h|'+c.id,body:{summary:'Hearing: '+ctitle(c)+(who?' — '+who:''),description:[c.court,c.stage?'For: '+c.stage:'',c.caseNo?'Case no: '+c.caseNo:'',ph?'Client: '+who+' '+ph:'',isAdmin&&bal(c.id)?'Fee remaining: '+rs(bal(c.id)):''].filter(Boolean).join('\n'),location:c.court||'',...allDay(c.nextDate),colorId:'9',reminders:{useDefault:false,overrides:[{method:'popup',minutes:240}]}}});
-    (c.deadlines||[]).forEach((x,i)=>{if(x.done||!x.d)return;const n=x.rem===0?0:(+x.rem||2);ev.push({key:'d|'+c.id+'|'+i,body:{summary:(x.label||'Filing')+': '+ctitle(c),description:[who,c.court].filter(Boolean).join(' · '),...allDay(x.d),colorId:'11',reminders:{useDefault:false,overrides:[{method:'popup',minutes:at9(n)},{method:'popup',minutes:240}].filter((o,j,a)=>a.findIndex(z=>z.minutes===o.minutes)===j)}}})});
-    if(isAdmin){const ni=nextInst(c.id);if(ni)ev.push({key:'f|'+c.id,body:{summary:'Fee due '+rs(ni.due)+(who?' — '+who:''),description:ctitle(c)+'\nRemaining on case: '+rs(bal(c.id))+(ph?'\nClient phone: '+ph:''),...allDay(ni.d),colorId:'5',reminders:{useDefault:false,overrides:[{method:'popup',minutes:at9(+ni.rem||0)}]}}})}}
+    if(c.nextDate)ev.push({key:'h|'+c.id,body:{summary:'Hearing'+(c.caseNo?': '+c.caseNo:''),description:c.court||'',location:c.court||'',...allDay(c.nextDate),colorId:'9',reminders:{useDefault:false,overrides:[{method:'popup',minutes:240}]}}});
+    (c.deadlines||[]).forEach((x,i)=>{if(x.done||!x.d)return;const n=x.rem===0?0:(+x.rem||2);ev.push({key:'d|'+c.id+'|'+i,body:{summary:(x.label||'Filing')+(c.caseNo?': '+c.caseNo:''),description:c.court||'',...allDay(x.d),colorId:'11',reminders:{useDefault:false,overrides:[{method:'popup',minutes:at9(n)},{method:'popup',minutes:240}].filter((o,j,a)=>a.findIndex(z=>z.minutes===o.minutes)===j)}}})});
+    if(isAdmin){const ni=nextInst(c.id);if(ni)ev.push({key:'f|'+c.id,body:{summary:'Fee due'+(c.caseNo?': '+c.caseNo:''),description:'',...allDay(ni.d),colorId:'5',reminders:{useDefault:false,overrides:[{method:'popup',minutes:at9(+ni.rem||0)}]}}})}}
   return ev}
 async function gSync(manual){if(!GCID||!(settings.gcal&&settings.gcal.on))return;if(G.busy){G.again=1;return}if(!gOK()){if(manual)toast(t('gcalReconnect'));render();return}
   G.busy=true;try{const st=settings.gcal;st.h=st.h||{};
@@ -683,14 +710,14 @@ async function prfGet(rawId){const a=await navigator.credentials.get({publicKey:
   const r=a&&a.getClientExtensionResults().prf;const b=r&&r.results&&r.results.first;if(!b)throw new Error('noprf');return crypto.subtle.importKey('raw',new Uint8Array(b),'AES-GCM',false,['encrypt','decrypt'])}
 async function bioEnable(pass){
   if(!bioOK()){toast(t('bioNo'));return}
-  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt);await dec(k,S.meta.ver)}}catch(x){toast(t('wrongPass'));return}
+  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt,S.meta.it);await dec(k,S.meta.ver)}}catch(x){toast(t('wrongPass'));return}
   try{const cred=await navigator.credentials.create({publicKey:{rp:{name:'MLA Diary'},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:CLOUD?C.email:'MLA Diary',displayName:'MLA Diary'},challenge:crypto.getRandomValues(new Uint8Array(32)),
       pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},timeout:60000,extensions:{prf:{eval:{first:PRF_SALT}}}}});
     const raw=new Uint8Array(cred.rawId);toast(t('bioConfirm'));const key=await prfGet(raw);
     const blob=await enc(key,te.encode(pass));await idbPut('kv',bioKey(),{id:b64(raw),blob:pack(blob)});toast(t('bioOn'));render()}
   catch(x){toast(x&&x.message==='noprf'?t('bioNo'):(x&&x.name==='NotAllowedError'?t('bioCancel'):t('bioNo')))}}
 async function bioUnlock(){try{const rec=await idbGet('kv',bioKey());if(!rec)return;const key=await prfGet(unb64(rec.id));let pass;try{pass=tdec.decode(await dec(key,unpack(rec.blob)))}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale')+' (F2)';return}
-  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt);await dec(k,S.meta.ver)}}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale')+' (F3)';return}
+  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt,S.meta.it);await dec(k,S.meta.ver)}}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale')+' (F3)';return}
   BIOPASS=pass;$('#lockForm').requestSubmit()}catch(x){if(!(x&&x.name==='NotAllowedError'))$('#lkErr').textContent=t('bioFail')+' (F1'+(x&&x.message==='noprf'?'p':'')+')'}}
 let BIOPASS='';
 async function bioOff(){await idbDel('kv',bioKey());toast(t('bioOffDone'));render()}
@@ -701,8 +728,44 @@ async function bioBox(){const el=$('#bioBox');if(!el)return;const rec=await idbG
 let idleT=null,hiddenAt=0,fails=0,waitUntil=0,LKMODE='';
 function bump(){if(!S.key)return;clearTimeout(idleT);idleT=setTimeout(lock,(settings.autoLock||5)*60000)}
 ['pointerdown','keydown','touchstart','scroll'].forEach(ev=>document.addEventListener(ev,bump,{passive:true}));
-document.addEventListener('visibilitychange',()=>{if(document.hidden)hiddenAt=Date.now();else if(S.key&&hiddenAt&&Date.now()-hiddenAt>Math.min(2,settings.autoLock||5)*60000)lock()});
-function lock(){S.key=null;S.pw='';if(CLOUD){cUnsub();C.ok=C.fk=null;C.oraw=C.fraw='';C.cache.clear()}clients=[];cases=[];fees={};curId=null;curClient=null;$$('dialog').forEach(d=>{if(d.open)d.close()});$('#view').innerHTML='';clearTimeout(idleT);showLock()}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();if(S.key&&!(+settings.hideLock>0)&&Date.now()>EXTUNTIL)lock()}
+  else{rollDay();if(S.key&&hiddenAt&&Date.now()-hiddenAt>(+settings.hideLock>0?+settings.hideLock:2)*60000)lock();EXTUNTIL=0;hiddenAt=0}});
+const EXTA=new Set(['scan','upload','pickExcel','bioOn','bioUnlock','gcalConnect','gcalSync','receipt','feeDoc','causePdf','causePrint','causeXls','roundSheet','encBackup','backup','ics','icsShare','icsGoogle','feeRem','readyShare','readyDl','viewDoc','recPrint','erCopy','mic']);
+document.addEventListener('click',e=>{const el=e.target.closest('a[href]:not([href="#"]),input[type=file],[data-a]');if(!el)return;if(el.matches('a[href]:not([href="#"]),input[type=file]')||EXTA.has(el.dataset.a))ext()},true);
+function rollDay(){const n=iso(new Date());if(n===TODAY)return;const old=TODAY;TODAY=n;if(ui.cause===addDays(old,1))ui.cause=addDays(n,1);if(calDay===old)calDay=n;if(calM===old.slice(0,7))calM=n.slice(0,7);if(S.key)render()}
+setInterval(rollDay,60000);
+const thr=()=>{try{return JSON.parse(localStorage.getItem('mla_thr'))||{n:0,u:0}}catch(x){return{n:0,u:0}}};
+function thrFail(){const o=thr();o.n++;if(o.n>=5)o.u=Date.now()+(o.n>=10?30*60000:o.n>=8?5*60000:30000);try{localStorage.setItem('mla_thr',JSON.stringify(o))}catch(x){}}
+function thrOk(){try{localStorage.removeItem('mla_thr')}catch(x){}}
+/* ---------- recovery code ---------- */
+const B32='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const recNew=()=>[...crypto.getRandomValues(new Uint8Array(25))].map(x=>B32[x&31]).join('').match(/.{5}/g).join('-');
+const recNorm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const isRecCode=s=>recNorm(s).length===25&&/^[A-HJ-NP-Z2-9]+$/.test(recNorm(s));
+async function recWrap(code,pass){const salt=crypto.getRandomValues(new Uint8Array(16));const k=await deriveKey(recNorm(code),salt,100000);return{salt,blob:await enc(k,te.encode(pass)),made:TODAY}}
+async function recOpen(rec,code){const k=await deriveKey(recNorm(code),rec.salt,100000);return tdec.decode(await dec(k,rec.blob))}
+async function idbMulti(ops){const d=await idbOpen();return new Promise((ok,no)=>{const tx=d.transaction(['kv','files'],'readwrite');for(const [st,k,v] of ops)tx.objectStore(st).put(v,k);tx.oncomplete=()=>ok();tx.onerror=()=>no(tx.error);tx.onabort=()=>no(tx.error)})}
+function rekey(pass,keepRec){const job=saving.then(async()=>{const salt=crypto.getRandomValues(new Uint8Array(16)),key=await deriveKey(pass,salt,IT);const ops=[];
+    for(const k of await idbKeys('files')){const o=await idbGet('files',k);const n=await enc(key,await dec(S.key,o));n.type=o.type;ops.push(['files',k,n])}
+    const old=S.meta||{};const meta={salt,ver:await enc(key,te.encode('mla-ok')),it:IT,...(keepRec&&old.rec?{rec:old.rec}:{})};
+    ops.push(['kv','state',await encJ(key,snapOf())],['kv','meta',meta]);await idbMulti(ops);S.meta=meta;S.key=key});
+  saving=job.catch(()=>{});return job}
+async function checkPass(p){if(!S.meta)return null;try{const k=await deriveKey(p,S.meta.salt,S.meta.it);await dec(k,S.meta.ver);return p}catch(x){}
+  if(S.meta.rec&&isRecCode(p)){try{const pw=await recOpen(S.meta.rec,p);const k=await deriveKey(pw,S.meta.salt,S.meta.it);await dec(k,S.meta.ver);return pw}catch(x){}}return null}
+async function recMake(){if(!S.pw){toast(t('recNeedPass'));return}const code=recNew();const rec=await recWrap(code,S.pw);
+  saving=saving.then(async()=>{S.meta={...S.meta,rec};await idbPut('kv','meta',S.meta)});await saving;
+  $('#recCodeShow').textContent=code;RECSHOW=code;$('#recDlg').showModal();render()}
+let RECSHOW='';
+async function recPdf(code){try{const J=await jsPDF();const doc=new J({unit:'mm',format:'a5'});const L=await logo();if(L)try{doc.addImage(L,'JPEG',14,12,22,22)}catch(x){}
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text('MLA Diary — Recovery code',40,22);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(FIRM.name+' · made '+fd(TODAY),40,29);
+  doc.setFont('courier','bold');doc.setFontSize(17);doc.text(code,74,62,{align:'center'});doc.setFont('helvetica','normal');doc.setFontSize(10);
+  doc.text(doc.splitTextToSize('If the MLA Diary password is forgotten, open the app, tap "Forgot password?" and type this code. It also opens backup files made after this date. Keep this sheet in the chamber safe. Do not photograph it or send it on WhatsApp. If a new code is made, this one stops working.',120),14,80);
+  openBlob(doc.output('blob'),'MLA-Diary-recovery-code.pdf')}catch(x){toast('Could not make PDF')}}
+async function eraseReq(){return (await idbGet('kv','eraseReq').catch(()=>null))||0}
+async function forgotBox(){const r=await eraseReq(),now=Date.now(),ready=r&&now-r>=864e5;
+  $('#erInfo').textContent=!r?t('erNone'):ready?t('erReady'):t('erWait')+' '+new Date(r+864e5).toLocaleString();
+  $('#erActs').innerHTML=`<button type="button" data-a="erCopy">${esc(t('erSaveCopy'))}</button>`+(!r?`<button type="button" class="ghost danger" data-a="erReq">${esc(t('erRequest'))}</button>`:ready?`<button type="button" class="danger" data-a="eraseStart">${esc(t('erNow'))}</button><button type="button" class="ghost" data-a="erCancel">${esc(t('erCancel'))}</button>`:`<button type="button" class="ghost" data-a="erCancel">${esc(t('erCancel'))}</button>`)}
+function lock(){S.key=null;S.pw='';arc={cases:[],clients:[]};if(CLOUD){cUnsub();C.ok=C.fk=null;C.oraw=C.fraw='';C.cache.clear()}clients=[];cases=[];fees={};curId=null;curClient=null;$$('dialog').forEach(d=>{if(d.open)d.close()});$('#view').innerHTML='';clearTimeout(idleT);showLock()}
 async function showLock(){
   const f=E($('#lockForm'));f.reset();const err=$('#lkErr');err.textContent='';let mode;
   if(!CLOUD){const meta=await idbGet('kv','meta').catch(()=>null);S.meta=meta||null;mode=meta?'unlock':'setup'}
@@ -713,7 +776,7 @@ async function showLock(){
   show('#lkE',mode==='login');show('#lkU',mode!=='login'&&mode!=='wait');f.un.value=CLOUD&&C.email?C.email:'MLA Diary';show('#lkP1',mode!=='wait');show('#lkC',mode==='setup');show('#lkBtn',mode!=='wait');show('#lkRetry',mode==='wait');show('#lkOut',CLOUD&&mode!=='login');
   $('#lkL1').textContent=mode==='login'?t('loginPass'):mode==='setup'?t('newPass'):t('password');
   $('#lkWarn').textContent=mode==='setup'?t('passWarn'):'';$('#lkBtn').textContent=mode==='login'?t('signIn'):mode==='setup'?t('setPass'):t('unlock');
-  show('#lkErase',!CLOUD&&mode==='unlock');show('#lkRestore',!CLOUD);
+  show('#lkErase',!CLOUD&&mode==='unlock');show('#lkRestore',!CLOUD);show('#lkHere',TABLOCK==='busy'||TABLOCK==='lost');if(TABLOCK==='busy')err.textContent=t('openElsewhere');if(TABLOCK==='lost')err.textContent=t('openedElsewhere');
   const bio=mode==='unlock'&&bioOK()?await idbGet('kv',bioKey()).catch(()=>null):null;show('#lkBio',!!bio);
   f.p1.setAttribute('autocomplete',mode==='setup'?'new-password':'current-password');
   $('#lkVer').textContent='MLA Diary '+APPV;
@@ -721,23 +784,29 @@ async function showLock(){
 }
 async function opened(){
   if(LASTP){S.pw=LASTP;LASTP='';try{if(window.PasswordCredential&&navigator.credentials&&navigator.credentials.store)navigator.credentials.store(new PasswordCredential({id:CLOUD&&C.email?C.email:'MLA Diary',password:S.pw,name:'MLA Diary'})).catch(()=>{})}catch(x){}}
-  $('#lock').hidden=true;$('#appWrap').hidden=false;view='clients';isAdmin=!CLOUD||!!C.fk;applyLang();bump();
+  $('#lock').hidden=true;$('#appWrap').hidden=false;view='clients';isAdmin=!CLOUD||!!C.fk;rollDay();applyLang();bump();
+  if(!CLOUD){const r=await eraseReq();if(r){await idbDel('kv','eraseReq').catch(()=>{});setTimeout(()=>alert(t('erNote')),300)}}
+  if(RECUSED){RECUSED=false;view='settings';render();toast(t('setNewPass'));setTimeout(()=>{const o=$('#pwForm [name=o]');if(o){o.value=S.pw;const n=$('#pwForm [name=n]');if(n){try{n.scrollIntoView({block:'center'})}catch(x){}n.focus()}}},80)}
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(x){}
   load(LIB.pdf).then(()=>load(LIB.at)).catch(()=>{});logo();
 }
 $('#lockForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),err=$('#lkErr'),btn=$('#lkBtn');err.textContent='';const p1=BIOPASS||f.p1.value;BIOPASS='';LASTP=LKMODE==='login'?'':p1;
-  if(Date.now()<waitUntil){err.textContent=t('waitTry');return}
+  if(Date.now()<thr().u){err.textContent=t('waitTry');return}
+  if(TABLOCK==='busy'||TABLOCK==='lost'){err.textContent=t('openElsewhere');return}
   btn.disabled=true;
   try{
     if(LKMODE==='login'){try{await C.auth.signInWithEmailAndPassword(f.em.value.trim(),p1)}catch(x){err.textContent=t('wrongLogin');return}await showLock();return}
     if(LKMODE==='setup'){if(p1.length<6){err.textContent=t('passShort');return}if(p1!==f.p2.value){err.textContent=t('passMismatch');return}
-      if(!CLOUD){const salt=crypto.getRandomValues(new Uint8Array(16));const key=await deriveKey(p1,salt);const ver=await enc(key,te.encode('mla-ok'));
-        await idbPut('kv','meta',{salt,ver});S.key=key;S.meta={salt,ver};load_({});settings.created=TODAY;await persist();opened();return}
+      if(!CLOUD){const salt=crypto.getRandomValues(new Uint8Array(16));const key=await deriveKey(p1,salt,IT);const ver=await enc(key,te.encode('mla-ok'));
+        await idbPut('kv','meta',{salt,ver,it:IT});S.key=key;S.meta={salt,ver,it:IT};load_({});settings.created=TODAY;await persist();opened();return}
       const m=await C.fs.collection('meta').doc('office').get().catch(()=>null);if(m&&m.exists){err.textContent=t('alreadySetup');return}
       const keys={o:rnd(32),f:rnd(32)};const r=await makeRing(p1,keys);await C.fs.collection('keyrings').doc(C.email).set(r.doc);await C.fs.collection('meta').doc('office').set({created:TODAY,by:C.email});
       C.ring=r.doc;await unlockCloud(r.k,keys);return}
-    if(!CLOUD){try{const key=await deriveKey(p1,S.meta.salt);await dec(key,S.meta.ver);S.key=key;fails=0;const st=await idbGet('kv','state');load_(st?await decJ(key,st):{});opened()}catch(x){fails++;if(fails>=5){waitUntil=Date.now()+30000;fails=0}err.textContent=t('wrongPass')}return}
-    try{const k=await deriveKey(p1,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver));fails=0;await unlockCloud(k,await decS(k,C.ring.ring))}catch(x){fails++;if(fails>=5){waitUntil=Date.now()+30000;fails=0}err.textContent=t('wrongPass')}
+    if(!CLOUD){let key;try{key=await deriveKey(p1,S.meta.salt,S.meta.it);await dec(key,S.meta.ver)}catch(x){thrFail();err.textContent=t('wrongPass');return}
+      thrOk();S.key=key;const st=await idbGet('kv','state');load_(st?await decJ(key,st):{});
+      if(!(S.meta.it>=IT)){err.textContent=t('upgrading');try{await rekey(p1,true)}catch(x){}err.textContent=''}
+      opened();return}
+    try{const k=await deriveKey(p1,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver));thrOk();await unlockCloud(k,await decS(k,C.ring.ring))}catch(x){thrFail();err.textContent=t('wrongPass')}
   }catch(x){err.textContent=cErr(x)}finally{btn.disabled=false}
 });
 async function unlockCloud(k,keys){S.key=k;S.meta={salt:unb64(C.ring.salt),ver:unpk(C.ring.ver)};C.oraw=keys.o;C.fraw=keys.f||'';C.ok=await rawKey(keys.o);C.fk=keys.f?await rawKey(keys.f):null;
@@ -746,20 +815,32 @@ document.addEventListener('submit',async e=>{
   if(e.target.id==='staffForm'){e.preventDefault();const f=E(e.target);await addStaff(f.e.value,f.p.value);f.reset();return}
   if(e.target.id!=='pwForm')return;e.preventDefault();const f=E(e.target);
   if(f.n.value.length<6){toast(t('passShort'));return}if(f.n.value!==f.c.value){toast(t('passMismatch'));return}
-  try{const old=await deriveKey(f.o.value,S.meta.salt);await dec(old,S.meta.ver)}catch(x){toast(t('wrongPass'));return}
+  try{const old=await deriveKey(f.o.value,S.meta.salt,S.meta.it);await dec(old,S.meta.ver)}catch(x){toast(t('wrongPass'));return}
   toast(t('working'));
   try{if(CLOUD){const r=await makeRing(f.n.value,{o:C.oraw,...(C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(C.email).set(r.doc);C.ring=r.doc;S.key=r.k;S.meta={salt:unb64(r.doc.salt),ver:unpk(r.doc.ver)};S.pw=f.n.value;f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));return}
-    const salt=crypto.getRandomValues(new Uint8Array(16)),key=await deriveKey(f.n.value,salt);
-    for(const k of await idbKeys('files')){const o=await idbGet('files',k);const n=await enc(key,await dec(S.key,o));n.type=o.type;await idbPut('files',k,n)}
-    const ver=await enc(key,te.encode('mla-ok'));await idbPut('kv','meta',{salt,ver});S.meta={salt,ver};S.key=key;S.pw=f.n.value;await persist();f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'))}
+    const hadRec=!!(S.meta&&S.meta.rec);await rekey(f.n.value,false);S.pw=f.n.value;f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));if(hadRec)setTimeout(()=>alert(t('recRedo')),400);render()}
   catch(x){toast(CLOUD?cErr(x):'Could not change password')}
 });
-document.addEventListener('change',e=>{if(e.target.id==='autoLock'){settings.autoLock=+e.target.value;persist();bump()}});
+document.addEventListener('change',e=>{if(e.target.id==='autoLock'){settings.autoLock=+e.target.value;persist();bump()}if(e.target.id==='hideLock'){settings.hideLock=+e.target.value;persist()}});
 $('#xlIn').addEventListener('change',e=>{const f=e.target.files[0];if(f)importExcel(f)});
-$('#restoreForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),file=$('#restoreFile').files[0],err=$('#rsErr');err.textContent='';
+let RSTEST=false,RECUSED=false;
+$('#restoreForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),file=$('#restoreFile').files[0],err=$('#rsErr'),test=RSTEST;RSTEST=false;err.textContent='';$('#rsOk').textContent='';
   if(!file){err.textContent=t('badFile');return}
-  $('#rsBtn').disabled=true;try{if(!CLOUD)LASTP=f.rp.value;await doRestore(file,f.rp.value);$('#restoreDlg').close();if(!CLOUD){toast(t('restored'));opened()}}catch(x){err.textContent=x.message||t('badFile')}finally{$('#rsBtn').disabled=false}});
+  $('#rsBtn').disabled=true;try{
+    const b=await readBackup(file,f.rp.value);const nd=(b.o.files||[]).length,ncl=(b.data.clients||[]).length,nca=(b.data.cases||[]).length;
+    const sum=`${t('bkMade')} ${fd(String(b.o.created||'').slice(0,10))}: ${ncl} ${t('bkClients')}, ${nca} ${t('bkCases')}, ${nd} ${t('bkDocs')}`;
+    if(test){$('#rsOk').textContent='✓ '+t('testOk')+' — '+sum;return}
+    if(!CLOUD&&S.meta&&!S.key){const ok=await checkPass(f.cp.value);if(!ok){thrFail();err.textContent=t('wrongCurrent');return}thrOk()}
+    if(!confirm(sum+'\n\n'+t('replaceAsk')))return;
+    if(!CLOUD)LASTP=b.pw;await doRestore(file,f.rp.value,b);$('#restoreDlg').close();if(!CLOUD){await idbDel('kv','eraseReq').catch(()=>{});toast(t('restored'));opened()}}
+  catch(x){err.textContent=x.message||t('badFile')}finally{$('#rsBtn').disabled=false}});
+$('#recForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),er=$('#recErr');er.textContent='';
+  if(Date.now()<thr().u){er.textContent=t('waitTry');return}
+  if(!S.meta||!S.meta.rec){er.textContent=t('noRec');return}if(!isRecCode(f.code.value)){er.textContent=t('badRec');return}
+  let pw;try{pw=await recOpen(S.meta.rec,f.code.value);const k=await deriveKey(pw,S.meta.salt,S.meta.it);await dec(k,S.meta.ver)}catch(x){thrFail();er.textContent=t('badRec');return}
+  thrOk();$('#forgotDlg').close();RECUSED=true;BIOPASS=pw;$('#lockForm').requestSubmit()});
 $('#eraseForm').addEventListener('submit',async e=>{e.preventDefault();if(E(e.target).w.value.trim().toUpperCase()!=='ERASE')return;
+  if(!CLOUD&&!S.key){const r=await eraseReq();if(!r||Date.now()-r<864e5){toast(t('erNotYet'));$('#eraseDlg').close();return}}
   await idbClear('files');await idbClear('kv');$('#eraseDlg').close();
   if(CLOUD){try{await C.fs.clearPersistence().catch(()=>{});await C.auth.signOut()}catch(x){}location.reload();return}
   S.key=null;S.meta=null;load_({});lock();toast(t('erased'))});
@@ -784,7 +865,16 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   if(a==='rmStaff'){if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');return}const id=el.dataset.id;try{await C.fs.collection('staff').doc(id).delete();await C.fs.collection('keyrings').doc(id).delete();toast(t('deleted'));staffList()}catch(x){toast(cErr(x))}}
   if(a==='lkRetry')showLock();
   if(a==='lkOut'){try{await C.auth.signOut()}catch(x){}showLock()}
-  if(a==='restoreStart'){E($('#restoreForm')).reset();$('#rsErr').textContent='';$('#rsWarn').textContent=CLOUD?t('importWarn'):(S.meta?t('restoreWarn'):'');$('#restoreDlg').showModal()}
+  if(a==='restoreStart'){E($('#restoreForm')).reset();$('#rsErr').textContent='';$('#rsOk').textContent='';$('#rsWarn').textContent=CLOUD?t('importWarn'):(S.meta?t('restoreWarn'):'');$('#rsCurL').style.display=!CLOUD&&S.meta&&!S.key?'':'none';$('#restoreDlg').showModal()}
+  if(a==='rsTest'){RSTEST=true;$('#restoreForm').requestSubmit()}
+  if(a==='forgotStart'){E($('#recForm')).reset();$('#recErr').textContent='';await forgotBox();$('#forgotDlg').showModal()}
+  if(a==='erReq'){await idbPut('kv','eraseReq',Date.now());await forgotBox()}
+  if(a==='erCancel'){await idbDel('kv','eraseReq');await forgotBox()}
+  if(a==='erCopy')encBackup();
+  if(a==='recMake')recMake();
+  if(a==='recPrint'&&RECSHOW)recPdf(RECSHOW);
+  if(a==='recDone'){RECSHOW='';$('#recCodeShow').textContent='';$('#recDlg').close()}
+  if(a==='lkHere'){TABLOCK=await tabLock(true);showLock()}
   if(a==='eraseStart'){E($('#eraseForm')).reset();$('#eraseDlg').showModal()}
   if(a==='langLock'){LANG=LANG==='en'?'ur':'en';try{localStorage.setItem('mla_lang',LANG)}catch(x){}document.documentElement.lang=LANG;document.documentElement.dir=LANG==='ur'?'rtl':'ltr';$$('[data-t]').forEach(x=>x.textContent=t(x.dataset.t));showLock()}
 });
@@ -794,5 +884,9 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.service
   setInterval(()=>{if(SWREG)SWREG.update().catch(()=>{})},30*60000)}
 async function appUpdate(){toast(t('working'));try{if(SWREG)await SWREG.update()}catch(x){}try{for(const k of await caches.keys())await caches.delete(k)}catch(x){}location.reload()}
 document.documentElement.lang=LANG;document.documentElement.dir=LANG==='ur'?'rtl':'ltr';$$('[data-t]').forEach(x=>x.textContent=t(x.dataset.t));
-(async()=>{if(CLOUD){try{await cInit()}catch(x){$('#lock').hidden=false;$('#lkErr').textContent=t('needOnline');return}}showLock()})();
+let TABLOCK='none';
+function tabLock(steal){if(!navigator.locks||!navigator.locks.request)return Promise.resolve('none');
+  return new Promise(res=>{navigator.locks.request('mla-diary-window',steal?{steal:true}:{ifAvailable:true},l=>{if(!l){res('busy');return}res('ok');return new Promise(()=>{})})
+    .catch(()=>{TABLOCK='lost';if(S.key)lock();else showLock()})})}
+(async()=>{TABLOCK=await tabLock(false);if(CLOUD){try{await cInit()}catch(x){$('#lock').hidden=false;$('#lkErr').textContent=t('needOnline');return}}showLock()})();
 }
