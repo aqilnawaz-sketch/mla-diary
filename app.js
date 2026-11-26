@@ -29,7 +29,7 @@ function idbOpen(){return IDB.db?Promise.resolve(IDB.db):new Promise((ok,no)=>{c
 async function idb(store,mode,fn){const d=await idbOpen();return new Promise((ok,no)=>{const tx=d.transaction(store,mode);const st=tx.objectStore(store);const r=fn(st);tx.oncomplete=()=>ok(r&&'result' in r?r.result:undefined);tx.onerror=()=>no(tx.error);tx.onabort=()=>no(tx.error)})}
 const idbGet=(st,k)=>idb(st,'readonly',s=>s.get(k)),idbPut=(st,k,v)=>idb(st,'readwrite',s=>s.put(v,k)),idbDel=(st,k)=>idb(st,'readwrite',s=>s.delete(k)),idbKeys=st=>idb(st,'readonly',s=>s.getAllKeys()),idbClear=st=>idb(st,'readwrite',s=>s.clear());
 const te=new TextEncoder(),tdec=new TextDecoder();
-const S={key:null,meta:null};
+const S={key:null,meta:null,pw:''};let LASTP='';
 async function deriveKey(pass,salt){const base=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
 async function enc(key,bytes){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes);return{iv,ct:new Uint8Array(ct)}}
 async function dec(key,o){return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:o.iv},key,o.ct))}
@@ -406,7 +406,8 @@ function caseCard(x){const ni=isAdmin?nextInst(x.id):null,dls=(x.deadlines||[]).
 function clientCases(id){const cs=id?cases.filter(x=>x.clientId===id):[];if(!id){$('#clCases').innerHTML='';return}
   const cl=cli(id),groups={};cs.sort((a,b)=>(a.status==='Active'?0:1)-(b.status==='Active'?0:1)).forEach(x=>{(groups[x.type||'Other']=groups[x.type||'Other']||[]).push(x)});
   const tot=cs.reduce((a,x)=>a+owed(x.id),0),rec=cs.reduce((a,x)=>a+paid(x.id),0),b=clientBal(id),w=isAdmin&&b?feeRemLink(id):'',n=waNum(cl.phone);
-  $('#clCases').innerHTML=`<div class="cl-top">${cl.phone?`<a class="btn sm" href="tel:${esc(String(cl.phone).replace(/[^\d+]/g,''))}">${esc(t('call'))} ${esc(cl.phone)}</a>`:''}${n?`<a class="btn sm" href="https://wa.me/${n}" target="_blank" rel="noopener">${esc(t('whatsapp'))}</a>`:''}${w?`<a class="btn sm" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('feeReminder'))}</a>`:''}<button type="button" class="sm pri" data-a="newCase">${esc(t('newCase'))}</button></div>
+  $('#clCases').innerHTML=`<div class="cl-top">${cl.phone?`<a class="btn sm" href="tel:${esc(String(cl.phone).replace(/[^\d+]/g,''))}">${esc(t('call'))} ${esc(cl.phone)}</a>`:''}${n?`<a class="btn sm" href="https://wa.me/${n}" target="_blank" rel="noopener">${esc(t('whatsapp'))}</a>`:''}${w?`<a class="btn sm" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('feeReminder'))}</a>`:''}<button type="button" class="sm" data-a="editClient">${esc(t('edit'))}</button><button type="button" class="sm pri" data-a="newCase">${esc(t('newCase'))}</button></div>
+  ${[cl.cnic?t('cnic')+': '+cl.cnic:'',cl.address?t('address')+': '+cl.address:'',cl.ref?t('referred')+': '+cl.ref:'',cl.email||''].filter(Boolean).length?`<p class="meta" style="margin:8px 0 0">${[cl.cnic?t('cnic')+': '+cl.cnic:'',cl.address?t('address')+': '+cl.address:'',cl.ref?t('referred')+': '+cl.ref:'',cl.email||''].filter(Boolean).map(esc).join(' · ')}</p>`:''}${cl.notes?`<p class="meta" style="margin:4px 0 0">${esc(cl.notes)}</p>`:''}
   ${isAdmin&&cs.length?`<div class="sum" style="margin-top:10px"><span>${esc(t('agreed'))} <b>${rs(tot)}</b></span><span>${esc(t('received'))} <b>${rs(rec)}</b></span><span>${esc(t('balance'))} <b style="color:var(--tape)">${rs(b)}</b></span></div>`:''}
   ${Object.entries(groups).map(([ty,list])=>`<div class="grp"><h5>${esc(ty)} · ${list.length}</h5>${list.map(caseCard).join('')}</div>`).join('')||`<p class="meta">${esc(t('noCasesYet'))}</p>`}`}
 
@@ -465,6 +466,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'calDay':calDay=el.dataset.d;if(calDay.slice(0,7)!==calM)calM=calDay.slice(0,7);render();break;
   case 'causePdf':causeList('pdf');break;case 'roundSheet':causeList('round');break;
   case 'saveAnyway':CONFLICT_OK=true;$('#conflictDlg').close();$('#caseForm').requestSubmit();break;
+  case 'editClient':{const d=$('#clEdit');d.open=true;setTimeout(()=>{d.scrollIntoView({behavior:'smooth',block:'start'});const n=d.querySelector('input');if(n)n.focus()},50);break}
   case 'feeDoc':feeDoc(id,el.dataset.k);break;
   case 'waAll':{const d=ui.cause||addDays(TODAY,1);const list=cases.filter(c=>c.status==='Active'&&c.nextDate===d);if(!list.length){toast(t('nothingDay'));break}$('#waAllList').innerHTML=list.map(c=>{const w=waHear(c);return `<div><b>${esc(cname(c)||t('untitledClient'))}</b> · ${esc(ctitle(c))}<span class="sp"></span>${w?`<a class="btn sm" href="${esc(w)}" target="_blank" rel="noopener" data-a="waSent">${esc(t('whatsapp'))}</a>`:`<span class="meta">${esc(t('noPhone'))}</span>`}</div>`}).join('');$('#waAllDlg').showModal();break}
   case 'waSent':{setTimeout(()=>{el.textContent='✓ '+t('sent');el.classList.add('ghost')},300);break}case 'causePrint':causeList('print');break;case 'causeXls':causeList('xlsx');break;
@@ -652,22 +654,22 @@ async function bioEnable(pass){
   try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt);await dec(k,S.meta.ver)}}catch(x){toast(t('wrongPass'));return}
   try{const cred=await navigator.credentials.create({publicKey:{rp:{name:'MLA Diary'},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:CLOUD?C.email:'MLA Diary',displayName:'MLA Diary'},challenge:crypto.getRandomValues(new Uint8Array(32)),
       pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},timeout:60000,extensions:{prf:{eval:{first:PRF_SALT}}}}});
-    const raw=new Uint8Array(cred.rawId);let key;const r=cred.getClientExtensionResults().prf;
-    if(r&&r.results&&r.results.first)key=await crypto.subtle.importKey('raw',new Uint8Array(r.results.first),'AES-GCM',false,['encrypt','decrypt']);else key=await prfGet(raw);
+    const raw=new Uint8Array(cred.rawId);toast(t('bioConfirm'));const key=await prfGet(raw);
     const blob=await enc(key,te.encode(pass));await idbPut('kv',bioKey(),{id:b64(raw),blob:pack(blob)});toast(t('bioOn'));render()}
   catch(x){toast(x&&x.message==='noprf'?t('bioNo'):(x&&x.name==='NotAllowedError'?t('bioCancel'):t('bioNo')))}}
-async function bioUnlock(){try{const rec=await idbGet('kv',bioKey());if(!rec)return;const key=await prfGet(unb64(rec.id));const pass=tdec.decode(await dec(key,unpack(rec.blob)));
+async function bioUnlock(){try{const rec=await idbGet('kv',bioKey());if(!rec)return;const key=await prfGet(unb64(rec.id));let pass;try{pass=tdec.decode(await dec(key,unpack(rec.blob)))}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale');return}
+  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt);await dec(k,S.meta.ver)}}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale');return}
   const f=E($('#lockForm'));f.p1.value=pass;$('#lockForm').requestSubmit()}catch(x){if(!(x&&x.name==='NotAllowedError'))$('#lkErr').textContent=t('bioFail')}}
 async function bioOff(){await idbDel('kv',bioKey());toast(t('bioOffDone'));render()}
 
 async function bioBox(){const el=$('#bioBox');if(!el)return;const rec=await idbGet('kv',bioKey()).catch(()=>null);
-  el.innerHTML=rec?`<span class="tag paid">${esc(t('bioActive'))}</span><button type="button" class="sm ghost danger" data-a="bioOff">${esc(t('bioDisable'))}</button>`:`<input type="password" id="bioPass" placeholder="${esc(t('password'))}" autocomplete="current-password" style="flex:1 1 180px;width:auto"><button type="button" class="pri" data-a="bioOn">${esc(t('bioEnable'))}</button>`}
+  el.innerHTML=rec?`<span class="tag paid">${esc(t('bioActive'))}</span><button type="button" class="sm ghost danger" data-a="bioOff">${esc(t('bioDisable'))}</button>`:(S.pw?'':`<input type="password" id="bioPass" placeholder="${esc(t('password'))}" autocomplete="off" style="flex:1 1 180px;width:auto">`)+`<button type="button" class="pri" data-a="bioOn">${esc(t('bioEnable'))}</button>`}
 /* ---------- lock ---------- */
 let idleT=null,hiddenAt=0,fails=0,waitUntil=0,LKMODE='';
 function bump(){if(!S.key)return;clearTimeout(idleT);idleT=setTimeout(lock,(settings.autoLock||5)*60000)}
 ['pointerdown','keydown','touchstart','scroll'].forEach(ev=>document.addEventListener(ev,bump,{passive:true}));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)hiddenAt=Date.now();else if(S.key&&hiddenAt&&Date.now()-hiddenAt>Math.min(2,settings.autoLock||5)*60000)lock()});
-function lock(){S.key=null;if(CLOUD){cUnsub();C.ok=C.fk=null;C.oraw=C.fraw='';C.cache.clear()}clients=[];cases=[];fees={};curId=null;curClient=null;$$('dialog').forEach(d=>{if(d.open)d.close()});$('#view').innerHTML='';clearTimeout(idleT);showLock()}
+function lock(){S.key=null;S.pw='';if(CLOUD){cUnsub();C.ok=C.fk=null;C.oraw=C.fraw='';C.cache.clear()}clients=[];cases=[];fees={};curId=null;curClient=null;$$('dialog').forEach(d=>{if(d.open)d.close()});$('#view').innerHTML='';clearTimeout(idleT);showLock()}
 async function showLock(){
   const f=E($('#lockForm'));f.reset();const err=$('#lkErr');err.textContent='';let mode;
   if(!CLOUD){const meta=await idbGet('kv','meta').catch(()=>null);S.meta=meta||null;mode=meta?'unlock':'setup'}
@@ -684,11 +686,12 @@ async function showLock(){
   $('#lock').hidden=false;$('#appWrap').hidden=true;setTimeout(()=>{try{(mode==='login'?f.em:f.p1).focus()}catch(x){}},50);
 }
 async function opened(){
+  if(LASTP){S.pw=LASTP;LASTP=''}
   $('#lock').hidden=true;$('#appWrap').hidden=false;view='clients';isAdmin=!CLOUD||!!C.fk;applyLang();bump();
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(x){}
   load(LIB.pdf).then(()=>load(LIB.at)).catch(()=>{});logo();
 }
-$('#lockForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),err=$('#lkErr'),btn=$('#lkBtn');err.textContent='';const p1=f.p1.value;
+$('#lockForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),err=$('#lkErr'),btn=$('#lkBtn');err.textContent='';const p1=f.p1.value;LASTP=LKMODE==='login'?'':p1;
   if(Date.now()<waitUntil){err.textContent=t('waitTry');return}
   btn.disabled=true;
   try{
@@ -711,17 +714,17 @@ document.addEventListener('submit',async e=>{
   if(f.n.value.length<6){toast(t('passShort'));return}if(f.n.value!==f.c.value){toast(t('passMismatch'));return}
   try{const old=await deriveKey(f.o.value,S.meta.salt);await dec(old,S.meta.ver)}catch(x){toast(t('wrongPass'));return}
   toast(t('working'));
-  try{if(CLOUD){const r=await makeRing(f.n.value,{o:C.oraw,...(C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(C.email).set(r.doc);C.ring=r.doc;S.key=r.k;S.meta={salt:unb64(r.doc.salt),ver:unpk(r.doc.ver)};f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));return}
+  try{if(CLOUD){const r=await makeRing(f.n.value,{o:C.oraw,...(C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(C.email).set(r.doc);C.ring=r.doc;S.key=r.k;S.meta={salt:unb64(r.doc.salt),ver:unpk(r.doc.ver)};S.pw=f.n.value;f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));return}
     const salt=crypto.getRandomValues(new Uint8Array(16)),key=await deriveKey(f.n.value,salt);
     for(const k of await idbKeys('files')){const o=await idbGet('files',k);const n=await enc(key,await dec(S.key,o));n.type=o.type;await idbPut('files',k,n)}
-    const ver=await enc(key,te.encode('mla-ok'));await idbPut('kv','meta',{salt,ver});S.meta={salt,ver};S.key=key;await persist();f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'))}
+    const ver=await enc(key,te.encode('mla-ok'));await idbPut('kv','meta',{salt,ver});S.meta={salt,ver};S.key=key;S.pw=f.n.value;await persist();f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'))}
   catch(x){toast(CLOUD?cErr(x):'Could not change password')}
 });
 document.addEventListener('change',e=>{if(e.target.id==='autoLock'){settings.autoLock=+e.target.value;persist();bump()}});
 $('#xlIn').addEventListener('change',e=>{const f=e.target.files[0];if(f)importExcel(f)});
 $('#restoreForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),file=$('#restoreFile').files[0],err=$('#rsErr');err.textContent='';
   if(!file){err.textContent=t('badFile');return}
-  $('#rsBtn').disabled=true;try{await doRestore(file,f.rp.value);$('#restoreDlg').close();if(!CLOUD){toast(t('restored'));opened()}}catch(x){err.textContent=x.message||t('badFile')}finally{$('#rsBtn').disabled=false}});
+  $('#rsBtn').disabled=true;try{if(!CLOUD)LASTP=f.rp.value;await doRestore(file,f.rp.value);$('#restoreDlg').close();if(!CLOUD){toast(t('restored'));opened()}}catch(x){err.textContent=x.message||t('badFile')}finally{$('#rsBtn').disabled=false}});
 $('#eraseForm').addEventListener('submit',async e=>{e.preventDefault();if(E(e.target).w.value.trim().toUpperCase()!=='ERASE')return;
   await idbClear('files');await idbClear('kv');$('#eraseDlg').close();
   if(CLOUD){try{await C.fs.clearPersistence().catch(()=>{});await C.auth.signOut()}catch(x){}location.reload();return}
@@ -731,7 +734,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   if(a==='gcalConnect'){try{await gConnect('consent');settings.gcal={on:true,cal:(settings.gcal&&settings.gcal.cal)||'',h:(settings.gcal&&settings.gcal.h)||{}};await persist();await gSync(true)}catch(x){toast(t('gcalFail'))}}
   if(a==='gcalSync'){try{if(!gOK())await gConnect('');await gSync(true)}catch(x){toast(t('gcalFail'))}}
   if(a==='gcalOff'){settings.gcal={on:false,cal:settings.gcal&&settings.gcal.cal||'',h:{}};G.tok=null;await persist();render();toast(t('gcalOffDone'))}
-  if(a==='bioOn'){const v=($('#bioPass')||{}).value||'';if(!v){toast(t('password'));return}bioEnable(v)}
+  if(a==='bioOn'){const v=S.pw||($('#bioPass')||{}).value||'';if(!v){toast(t('password'));return}bioEnable(v)}
   if(a==='bioOff')bioOff();
   if(a==='bioUnlock')bioUnlock();
   if(a==='encBackup')encBackup();
