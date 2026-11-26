@@ -78,6 +78,8 @@ async function saveFile(name,data){
   const ext=name.split('.').pop();const file=new File([data],name,{type:MIME[ext]||'application/octet-stream'});
   if(matchMedia('(pointer:coarse)').matches&&navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name});return}catch(e){if(e&&e.name==='AbortError')return}}
   const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},5000)}
+let LOGO=null;
+async function logo(){if(LOGO)return LOGO;try{const b=await (await fetch('icons/logo.jpg')).blob();LOGO=await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)})}catch(x){LOGO=''}return LOGO}
 async function jsPDF(){await load(LIB.pdf);await load(LIB.at);return window.jspdf.jsPDF}
 async function XL(){await load(LIB.xlsx);return window.XLSX}
 function words(n){n=Math.round(+n||0);if(!n)return 'Zero';const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'],b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
@@ -93,9 +95,9 @@ async function causeList(kind){
   const rows=list.map((c,i)=>[i+1,ctitle(c)+(c.opp?' (vs '+c.opp+')':''),[c.caseNo,c.fir?'FIR '+c.fir+(c.ps?' PS '+c.ps:''):''].filter(Boolean).join(' / '),[c.court,c.judge].filter(Boolean).join(' — '),cname(c),cphone(c),c.stage||'']);
   try{
     if(kind==='pdf'){const J=await jsPDF();const doc=new J({orientation:'landscape',unit:'mm',format:'a4'});
-      doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text(FIRM.name+' — Cause List',14,16);
+      const lg=await logo();if(lg)doc.addImage(lg,'JPEG',265,6,22,22);doc.setTextColor(150,118,40);doc.setFont('times','bold');doc.setFontSize(17);doc.text(FIRM.name+' — Cause List',14,16);doc.setTextColor(20,20,20);
       doc.setFont('helvetica','normal');doc.setFontSize(11);doc.text(WD[new Date(d+'T00:00').getDay()]+', '+fd(d)+'  ·  '+list.length+' case(s)',14,23);
-      doc.autoTable({head:[head],body:rows,startY:28,styles:{fontSize:9,cellPadding:2},headStyles:{fillColor:[17,17,17]},columnStyles:{0:{cellWidth:8}}});
+      doc.autoTable({head:[head],body:rows,startY:28,styles:{fontSize:9,cellPadding:2},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},columnStyles:{0:{cellWidth:8}}});
       doc.setFontSize(8);doc.text(FIRM.addr+'  ·  '+FIRM.contact,14,200);
       await saveFile('Cause-list-'+d+'.pdf',doc.output('blob'))}
     else{const X=await XL();const ws=X.utils.aoa_to_sheet([[FIRM.name+' — Cause List '+fd(d)],[],head,...rows]);ws['!cols']=[{wch:4},{wch:36},{wch:22},{wch:28},{wch:20},{wch:14},{wch:18}];const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'Cause list');
@@ -117,13 +119,14 @@ async function backup(){
 async function receipt(cid,i){
   const c=byId(cid);const p=(F(cid).payments||[])[i];if(!c||!p)return;
   try{const J=await jsPDF();const doc=new J({unit:'mm',format:'a5'});const W=148;
-    doc.setFillColor(17,17,17);doc.rect(0,0,W,26,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text(FIRM.name.toUpperCase(),W/2,11,{align:'center'});
-    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(FIRM.adv,W/2,16.5,{align:'center'});doc.text(FIRM.addr,W/2,21,{align:'center'});
-    doc.setTextColor(179,18,31);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('FEE RECEIPT',W/2,36,{align:'center'});
+    const lg=await logo();doc.setFillColor(12,12,14);doc.rect(0,0,W,30,'F');doc.setDrawColor(201,164,68);doc.setLineWidth(0.6);doc.line(0,30,W,30);if(lg)doc.addImage(lg,'JPEG',6,3,24,24);
+    doc.setTextColor(228,196,110);doc.setFont('times','bold');doc.setFontSize(15);doc.text(FIRM.name.toUpperCase(),W/2+12,12,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(232,223,200);doc.text(FIRM.adv,W/2+12,18,{align:'center'});doc.text(FIRM.addr,W/2+12,23,{align:'center'});
+    doc.setTextColor(150,118,40);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('FEE RECEIPT',W/2,39,{align:'center'});
     doc.setTextColor(20,20,20);doc.setFontSize(10);doc.setFont('helvetica','normal');
-    doc.text('Receipt no: '+(p.rno||'—'),12,46);doc.text('Date: '+fd(p.d),W-12,46,{align:'right'});
+    doc.text('Receipt no: '+(p.rno||'—'),12,48);doc.text('Date: '+fd(p.d),W-12,48,{align:'right'});
     const L=[['Received from',cname(c)||'—'],['Case',ctitle(c)],['Case no.',c.caseNo||'—'],['Court',c.court||'—'],['Amount',rs(p.amt)],['In words','Rupees '+words(p.amt)+' only'],['Mode',p.mode||'Cash'],['Remarks',p.note||'—'],['Total fee agreed',rs(owed(cid))],['Received to date',rs(paid(cid))],['Balance',rs(bal(cid))]];
-    doc.autoTable({body:L,startY:51,theme:'plain',styles:{fontSize:10,cellPadding:1.6},columnStyles:{0:{fontStyle:'bold',cellWidth:38}},margin:{left:12,right:12}});
+    doc.autoTable({body:L,startY:53,theme:'plain',styles:{fontSize:10,cellPadding:1.6},columnStyles:{0:{fontStyle:'bold',cellWidth:38}},margin:{left:12,right:12}});
     const y=doc.lastAutoTable.finalY+22;doc.line(W-62,y,W-12,y);doc.setFontSize(9);doc.text('Signature',W-37,y+5,{align:'center'});
     doc.setFontSize(7.5);doc.setTextColor(90,90,90);doc.text(FIRM.contact,W/2,204,{align:'center'});
     await saveFile('Receipt-'+(p.rno||p.d)+'.pdf',doc.output('blob'));
