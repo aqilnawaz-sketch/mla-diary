@@ -94,7 +94,7 @@ const waHear=c=>waLink(cphone(c),`Assalam-o-Alaikum ${cname(c)||''}, your case "
 /* ---------- libraries & files ---------- */
 const loaded={};
 function load(src){return loaded[src]||(loaded[src]=new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>{delete loaded[src];no(new Error('load'))};document.head.appendChild(s)}))}
-const MIME={pdf:'application/pdf',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',json:'application/json',mladiary:'application/octet-stream'};
+const MIME={ics:'text/calendar',pdf:'application/pdf',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',json:'application/json',mladiary:'application/octet-stream'};
 const mobile=()=>matchMedia('(pointer:coarse)').matches;
 function download(file){const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},5000)}
 let READY=null;
@@ -242,8 +242,13 @@ function vFee(){
   const expM=cases.flatMap(c=>F(c.id).expenses||[]).filter(e=>(e.d||'').startsWith(m)).reduce((a,e)=>a+(+e.amt||0),0);
   const due=cases.reduce((a,c)=>a+bal(c.id),0);
   const od=cases.filter(c=>bal(c.id)>0).flatMap(c=>{let cum=0;const pd=paid(c.id);return (F(c.id).plan||[]).slice().sort((a,b)=>a.d<b.d?-1:1).filter(p=>{cum+=+p.amt||0;return p.d<=TODAY&&cum>pd}).map(p=>({c,p}))});
-  let h=`<div class="chips">${chip(rs(recM),t('recMonth'))}${chip(rs(due),t('dueAll'),due)}${chip(rs(recA),t('recAll'))}${chip(rs(expM),t('expMonth'))}</div>`;
-  if(od.length)h+=`<div class="panel"><h3>${esc(t('overdueInst'))}</h3><div class="hist">${od.map(o=>`<div class="x"><b>${rs(o.p.amt)}</b> ${fd(o.p.d)} · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a> · ${esc(cname(o.c))}</div>`).join('')}</div></div>`;
+  const agreedAll=cases.reduce((a,c)=>a+owed(c.id),0);
+  let h=`<div class="chips">${chip(rs(agreedAll),t('totalFee'))}${chip(rs(recA),t('recAll'))}${chip(rs(due),t('remaining'),due)}${chip(rs(recM),t('recMonth'))}${chip(rs(expM),t('expMonth'))}</div>`;
+  const ups=cases.map(c=>({c,ni:nextInst(c.id)})).filter(o=>o.ni&&daysLeft(o.ni.d)<=30).sort((a,b)=>a.ni.d<b.ni.d?-1:1);
+  const noPlan=cases.filter(c=>c.status==='Active'&&bal(c.id)>0&&!nextInst(c.id));
+  h+=`<div class="panel"><h3>${esc(t('feeReminders'))}</h3>${ups.length?`<div class="hist">${ups.map(o=>{const n=daysLeft(o.ni.d),due=addDays(o.ni.d,-(+o.ni.rem||0))<=TODAY;return `<div class="${n<0?'x':due?'p':''}"><b>${rs(o.ni.due)}</b> · ${fd(o.ni.d)} (${dl(o.ni.d)}) · <a href="#" data-a="openClient" data-id="${esc(o.c.clientId||'')}">${esc(cname(o.c)||t('untitledClient'))}</a> · ${esc(ctitle(o.c))}${due?` · <span class="tag due">${esc(t('remindNow'))}</span>`:''}<span class="sp"></span>${cphone(o.c)?`<button class="sm" type="button" data-a="feeRem" data-id="${esc(o.c.clientId)}">${esc(t('whatsapp'))}</button>`:''}<button class="sm ghost" type="button" data-a="pay" data-id="${esc(o.c.id)}">${esc(t('addFee'))}</button></div>`}).join('')}</div>`:`<p class="meta">${esc(t('noFeeRem'))}</p>`}
+  ${noPlan.length?`<p class="meta" style="margin-top:10px">${esc(t('noDueSet'))}</p><div class="hist">${noPlan.map(c=>`<div>${esc(cname(c)||t('untitledClient'))} · ${esc(ctitle(c))} · ${esc(t('remaining'))} <b>${rs(bal(c.id))}</b><span class="sp"></span><button class="sm" type="button" data-a="inst" data-id="${esc(c.id)}">${esc(t('feeDueDate'))}</button></div>`).join('')}</div>`:''}</div>`;
+  if(!cases.some(c=>owed(c.id)))h+=`<div class="empty">${esc(t('feeHowTo'))}</div>`;
   const dcl=[...new Set(cases.filter(c=>bal(c.id)>0).map(c=>c.clientId||''))].map(cid=>({cid,cs:cases.filter(c=>(c.clientId||'')===cid&&bal(c.id)>0)})).sort((a,b)=>clientBal(b.cid)-clientBal(a.cid));
   h+=`<h2 class="sec">${esc(t('feeDue'))}</h2>`+(dcl.length?`<table class="stack"><thead><tr><th>${esc(t('client'))}</th><th>${esc(t('cases'))}</th><th class="n">${esc(t('agreed'))}</th><th class="n">${esc(t('received'))}</th><th class="n">${esc(t('balance'))}</th><th>${esc(t('feeReminder'))}</th></tr></thead><tbody>${dcl.map(g=>{const cl=cli(g.cid),all=cases.filter(c=>(c.clientId||'')===g.cid);return `<tr><td><a href="#" data-a="openClient" data-id="${esc(g.cid)}"><b>${esc(cl.name||t('untitledClient'))}</b></a></td><td>${g.cs.map(c=>`<a href="#" data-a="open" data-id="${esc(c.id)}">${esc(ctitle(c))}</a>`).join('<br>')}</td><td class="n">${rs(all.reduce((a,c)=>a+owed(c.id),0))}</td><td class="n">${rs(all.reduce((a,c)=>a+paid(c.id),0))}</td><td class="n"><b>${rs(g.cs.reduce((a,c)=>a+bal(c.id),0))}</b></td><td>${cl.phone?`<button class="sm" type="button" data-a="feeRem" data-id="${esc(g.cid)}">${esc(t('whatsapp'))}</button>`:'<span class="meta">—</span>'}</td></tr>`}).join('')}</tbody></table>`:`<div class="empty">—</div>`);
   const rec=pays.sort((a,b)=>(b.d||'').localeCompare(a.d||'')).slice(0,20);
@@ -512,7 +517,10 @@ async function exportIcs(){
     if(c.nextDate&&c.nextDate>=TODAY)ev('h-'+c.id+'-'+c.nextDate,c.nextDate,'Hearing: '+ctitle(c),[cname(c),c.court,c.stage].filter(Boolean).join(' · '),['-PT4H','PT8H']);
     for(const x of c.deadlines||[])if(!x.done&&x.d&&x.d>=TODAY){const nd=+x.rem||2;ev('d-'+c.id+'-'+x.d+'-'+(x.label||'').replace(/\W/g,''),x.d,(x.label||t('deadline'))+': '+ctitle(c),[cname(c),c.court].filter(Boolean).join(' · '),['-P'+nd+'D','-PT4H'])}}
   L.push('END:VCALENDAR');if(!n){toast(t('noUpcoming'));return}
-  await saveFile('MLA-Diary-reminders-'+TODAY+'.ics',L.join('\r\n'));settings.icsAt=TODAY;persist();toast(n+' '+t('icsDone'))}
+  const blob=new Blob([L.join('\r\n')],{type:'text/calendar'}),name='MLA-Diary-reminders-'+TODAY+'.ics';ICS={blob,name};
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;if(!/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)||!('ontouchend' in document))a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove()},1000);
+  settings.icsAt=TODAY;persist();$('#icsN').textContent=n+' '+t('icsEvents');if(!$('#icsDlg').open)$('#icsDlg').showModal()}
+let ICS=null;
 
 /* ---------- voice typing ---------- */
 let REC=null;
@@ -651,6 +659,8 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   if(a==='bioUnlock')bioUnlock();
   if(a==='encBackup')encBackup();
   if(a==='ics')exportIcs();
+  if(a==='icsShare'&&ICS){const f=new File([ICS.blob],ICS.name,{type:'text/calendar'});try{await navigator.share({files:[f]})}catch(x){download(f)}}
+  if(a==='icsGoogle'){window.open('https://calendar.google.com/calendar/u/0/r/settings/export','_blank')}
   if(a==='pickExcel'){$('#xlIn').value='';$('#xlIn').click()}
   if(a==='xlTemplate')excelTemplate();
   if(a==='runImport')runImport();

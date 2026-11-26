@@ -109,6 +109,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--gold2);min-height:28p
 .ccard{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;display:grid;gap:6px}.ccard .ln{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:14px}.ccard .ln b{font-variant-numeric:tabular-nums}.ccard h6{margin:0;font:600 16px "IBM Plex Sans",sans-serif}.ccard a{color:var(--ink)}
 .cl-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .grp{margin-top:10px}.grp h5{margin:8px 0 4px;font:600 14px Cinzel,serif;color:var(--gold2)}
+#view a,dialog a:not(.btn){color:var(--gold2)}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--gold);color:#16120a;font-weight:600;padding:12px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw}
 .toast.on{opacity:1}
 @media(prefers-reduced-motion:reduce){.toast{transition:none}}
@@ -241,6 +242,9 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   <div class="db"><p data-t="eraseHelp"></p><label><span data-t="typeErase"></span><input name="w" autocomplete="off"></label>
     <div class="acts"><button class="pri" type="submit" data-t="erase"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div></div>
 </form></dialog>
+<dialog id="icsDlg"><div class="dh"><h3 data-t="icsTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><p><b id="icsN"></b></p><p data-t="icsIos"></p><ol class="meta" style="margin:0;padding-inline-start:20px"><li data-t="icsStep1"></li><li data-t="icsStep2"></li><li data-t="icsStep3"></li></ol>
+  <div class="acts"><button class="pri" type="button" data-a="ics" data-t="icsAgain"></button><button type="button" data-a="icsShare" data-t="icsSave"></button></div></div></dialog>
 <dialog id="readyDlg"><div class="dh"><h3 data-t="readyShare"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><p id="readyName" class="meta"></p><div class="acts"><button class="pri" type="button" data-a="readyShare" data-t="shareNow"></button><button type="button" data-a="readyDl" data-t="download"></button></div></div></dialog>
 <input type="file" id="fileIn" accept="image/*,application/pdf" hidden>
@@ -248,8 +252,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <input type="file" id="xlIn" accept=".xlsx,.xls,.csv" hidden>
 <datalist id="courts"></datalist><datalist id="clientList"></datalist>
 <div class="toast" id="toast" role="status"></div>
-<script src="config.js?v=5"></script>
-<script src="i18n.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="config.js?v=6"></script>
+<script src="i18n.js?v=6"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
