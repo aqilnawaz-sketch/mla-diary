@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-const TODAY=iso(new Date());const APPV='v11';
+const TODAY=iso(new Date());const APPV='v12';
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -689,9 +689,10 @@ async function bioEnable(pass){
     const raw=new Uint8Array(cred.rawId);toast(t('bioConfirm'));const key=await prfGet(raw);
     const blob=await enc(key,te.encode(pass));await idbPut('kv',bioKey(),{id:b64(raw),blob:pack(blob)});toast(t('bioOn'));render()}
   catch(x){toast(x&&x.message==='noprf'?t('bioNo'):(x&&x.name==='NotAllowedError'?t('bioCancel'):t('bioNo')))}}
-async function bioUnlock(){try{const rec=await idbGet('kv',bioKey());if(!rec)return;const key=await prfGet(unb64(rec.id));let pass;try{pass=tdec.decode(await dec(key,unpack(rec.blob)))}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale');return}
-  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt);await dec(k,S.meta.ver)}}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale');return}
-  const f=E($('#lockForm'));f.p1.value=pass;$('#lockForm').requestSubmit()}catch(x){if(!(x&&x.name==='NotAllowedError'))$('#lkErr').textContent=t('bioFail')}}
+async function bioUnlock(){try{const rec=await idbGet('kv',bioKey());if(!rec)return;const key=await prfGet(unb64(rec.id));let pass;try{pass=tdec.decode(await dec(key,unpack(rec.blob)))}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale')+' (F2)';return}
+  try{if(CLOUD){const k=await deriveKey(pass,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver))}else{const k=await deriveKey(pass,S.meta.salt);await dec(k,S.meta.ver)}}catch(x){await idbDel('kv',bioKey());$('#lkBio').style.display='none';$('#lkErr').textContent=t('bioStale')+' (F3)';return}
+  BIOPASS=pass;$('#lockForm').requestSubmit()}catch(x){if(!(x&&x.name==='NotAllowedError'))$('#lkErr').textContent=t('bioFail')+' (F1'+(x&&x.message==='noprf'?'p':'')+')'}}
+let BIOPASS='';
 async function bioOff(){await idbDel('kv',bioKey());toast(t('bioOffDone'));render()}
 
 async function bioBox(){const el=$('#bioBox');if(!el)return;const rec=await idbGet('kv',bioKey()).catch(()=>null);
@@ -713,8 +714,9 @@ async function showLock(){
   $('#lkL1').textContent=mode==='login'?t('loginPass'):mode==='setup'?t('newPass'):t('password');
   $('#lkWarn').textContent=mode==='setup'?t('passWarn'):'';$('#lkBtn').textContent=mode==='login'?t('signIn'):mode==='setup'?t('setPass'):t('unlock');
   show('#lkErase',!CLOUD&&mode==='unlock');show('#lkRestore',!CLOUD);
-  const bio=mode==='unlock'&&bioOK()?await idbGet('kv',bioKey()).catch(()=>null):null;show('#lkBio',!!bio);if(bio&&!showLock.tried){showLock.tried=1;setTimeout(bioUnlock,400)}
+  const bio=mode==='unlock'&&bioOK()?await idbGet('kv',bioKey()).catch(()=>null):null;show('#lkBio',!!bio);
   f.p1.setAttribute('autocomplete',mode==='setup'?'new-password':'current-password');
+  $('#lkVer').textContent='MLA Diary '+APPV;
   $('#lock').hidden=false;$('#appWrap').hidden=true;setTimeout(()=>{try{(mode==='login'?f.em:f.p1).focus()}catch(x){}},50);
 }
 async function opened(){
@@ -723,7 +725,7 @@ async function opened(){
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(x){}
   load(LIB.pdf).then(()=>load(LIB.at)).catch(()=>{});logo();
 }
-$('#lockForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),err=$('#lkErr'),btn=$('#lkBtn');err.textContent='';const p1=f.p1.value;LASTP=LKMODE==='login'?'':p1;
+$('#lockForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),err=$('#lkErr'),btn=$('#lkBtn');err.textContent='';const p1=BIOPASS||f.p1.value;BIOPASS='';LASTP=LKMODE==='login'?'':p1;
   if(Date.now()<waitUntil){err.textContent=t('waitTry');return}
   btn.disabled=true;
   try{
