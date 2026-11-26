@@ -10,9 +10,10 @@ const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d
 const rs=n=>'Rs '+Math.round(+n||0).toLocaleString('en-PK');
 const TYPES=['Civil','Criminal','Bail','Family','Khula / Divorce','Guardianship','Rent','Writ (LHC)','Appeal / Revision','Service','FIA','NAB','ATC','Banking','Revenue','Consumer','Other'];
 const ST=['Active','Decided','Withdrawn','Closed'];
-const COURTS=['Civil Judge, Bahawalpur','Senior Civil Judge, Bahawalpur','Family Judge, Bahawalpur','Judicial Magistrate, Bahawalpur','Additional Sessions Judge, Bahawalpur','Sessions Judge, Bahawalpur','LHC Bahawalpur Bench','Rent Controller, Bahawalpur','Banking Court','Anti-Terrorism Court','Special Judge Central','Accountability Court','Consumer Court','Service Tribunal','Revenue Court'];
+const COURT_TYPES=['Civil Judge','Senior Civil Judge','Family Judge','Guardian Judge','Rent Controller','Judicial Magistrate','Additional Sessions Judge','Sessions Judge','Special Judge (Central)','Anti-Terrorism Court','Banking Court','Accountability Court','Consumer Court','Labour Court','Service Tribunal','Revenue Court','Lahore High Court','Federal Shariat Court'];
+const CITIES=['Bahawalpur','Bahawalnagar','Rahim Yar Khan','Lodhran','Multan','Lahore','Islamabad','Karachi'];
 const STAGES=['Notice','Written statement','Reply','Issues','Plaintiff evidence','Defendant evidence','Arguments','Order / Judgment','Bail','Charge','Prosecution evidence','342 statement','Final arguments','Execution','Reconciliation'];
-const TASKS=['Written statement','Reply / Para-wise comments','Rejoinder','Evidence affidavit','Documents to file','Written arguments','Appeal limitation','Revision limitation','Fee deposit','Other'];
+const TASKS=['Written statement','Reply to notice','Reply / Para-wise comments','Rejoinder','Evidence affidavit','Documents to file','Written arguments','Appeal limitation','Revision limitation','Fee deposit','Other'];
 const FIRM={name:'Mian Law Associates',adv:'Mian Aqil Nawaz, Advocate High Court',addr:'Chamber No. 39, District Courts, Kachahery Chowk, Bahawalpur',contact:'0333-3621111 · mianlawassociates1@gmail.com · mlabwp.com.pk'};
 const LIB={pdf:'vendor/jspdf.umd.min.js',at:'vendor/jspdf.plugin.autotable.min.js',xlsx:'vendor/xlsx.full.min.js'};
 
@@ -181,7 +182,7 @@ const count=(arr,f)=>{const m={};arr.forEach(x=>{const k=f(x)||'—';m[k]=(m[k]|
 const clientBal=cid=>cases.filter(x=>x.clientId===cid).reduce((a,x)=>a+bal(x.id),0);
 function feeRemLink(cid){const cl=cli(cid);const cs=cases.filter(x=>x.clientId===cid&&bal(x.id)>0);if(!cs.length)return '';const tot=cs.reduce((a,x)=>a+bal(x.id),0);
   return waLink(cl.phone,`Assalam-o-Alaikum ${cl.name||''}, a gentle reminder from ${FIRM.name}: fee balance of ${rs(tot)} is pending for ${cs.map(x=>'"'+ctitle(x)+'" ('+rs(bal(x.id))+')').join(', ')}. Kindly arrange it at your convenience. JazakAllah. — ${FIRM.adv}, 0333-3621111`)}
-const dueSoon=()=>cases.filter(c=>c.status==='Active').flatMap(c=>(c.deadlines||[]).map((x,i)=>({c,x,i}))).filter(o=>!o.x.done&&o.x.d&&addDays(o.x.d,-(+o.x.rem||2))<=TODAY).sort((a,b)=>a.x.d<b.x.d?-1:1);
+const dueSoon=()=>cases.filter(c=>c.status==='Active').flatMap(c=>(c.deadlines||[]).map((x,i)=>({c,x,i}))).filter(o=>!o.x.done&&o.x.d&&addDays(o.x.d,-(o.x.rem===0?0:(+o.x.rem||2)))<=TODAY).sort((a,b)=>a.x.d<b.x.d?-1:1);
 const daysLeft=d=>Math.round((new Date(d+'T00:00')-new Date(TODAY+'T00:00'))/864e5);
 const upcomingDl=()=>cases.filter(c=>c.status==='Active').flatMap(c=>(c.deadlines||[]).map((x,i)=>({c,x,i}))).filter(o=>!o.x.done&&o.x.d&&o.x.d<=addDays(TODAY,15)).sort((a,b)=>a.x.d<b.x.d?-1:1);
 
@@ -191,7 +192,8 @@ function vDiary(){
   const past=act.filter(c=>c.nextDate&&c.nextDate<TODAY),dls=upcomingDl();
   let h='';
   const tomL=act.filter(c=>c.nextDate===tom),ds=dueSoon();
-  if(tomL.length||ds.length)h+=`<div class="panel"><h3>${esc(t('reminders'))}</h3><div class="hist">${tomL.length?`<div><b>${esc(t('tomorrow'))}:</b> ${tomL.length} ${esc(t('cases_n'))} — ${tomL.slice(0,4).map(c=>esc(ctitle(c))).join(', ')}${tomL.length>4?'…':''}</div>`:''}${ds.map(o=>{const n=daysLeft(o.x.d);return `<div class="${n<=0?'x':''}"><b>${esc(o.x.label||t('deadline'))}</b> — ${esc(ctitle(o.c))} · ${n<0?esc(t('overdue')):n===0?esc(t('today')):n+' '+esc(t('daysLeft'))} (${fd(o.x.d)})<span class="sp"></span><button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(o.c.id)}" data-i="${o.i}">${esc(t('done'))}</button></div>`}).join('')}</div></div>`;
+  const fd2=isAdmin?cases.filter(c=>c.status==='Active').map(c=>({c,ni:nextInst(c.id)})).filter(o=>o.ni&&addDays(o.ni.d,-(+o.ni.rem||0))<=TODAY):[];
+  if(tomL.length||ds.length||fd2.length)h+=`<div class="panel"><h3>${esc(t('reminders'))}</h3><div class="hist">${fd2.map(o=>`<div class="${daysLeft(o.ni.d)<=0?'x':''}"><b>${esc(t('feeDueOn'))}</b> ${rs(o.ni.due)} — ${esc(cname(o.c))} · ${esc(ctitle(o.c))} · ${dl(o.ni.d)}<span class="sp"></span>${o.c.clientId&&cphone(o.c)?`<button class="sm" type="button" data-a="feeRem" data-id="${esc(o.c.clientId)}">${esc(t('feeReminder'))}</button>`:''}</div>`).join('')}${tomL.length?`<div><b>${esc(t('tomorrow'))}:</b> ${tomL.length} ${esc(t('cases_n'))} — ${tomL.slice(0,4).map(c=>esc(ctitle(c))).join(', ')}${tomL.length>4?'…':''}</div>`:''}${ds.map(o=>{const n=daysLeft(o.x.d);return `<div class="${n<=0?'x':''}"><b>${esc(o.x.label||t('deadline'))}</b> — ${esc(ctitle(o.c))} · ${n<0?esc(t('overdue')):n===0?esc(t('today')):n+' '+esc(t('daysLeft'))} (${fd(o.x.d)})<span class="sp"></span><button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(o.c.id)}" data-i="${o.i}">${esc(t('done'))}</button></div>`}).join('')}</div></div>`;
   h+=`<div class="chips">${chip(act.filter(c=>c.nextDate===TODAY).length,t('today'))}${chip(act.filter(c=>c.nextDate===tom).length,t('tomorrow'))}${chip(act.filter(c=>c.nextDate>=TODAY&&c.nextDate<=wk).length,t('next7'))}${chip(past.length,t('passed'),past.length)}${chip(dls.length,t('deadlines'),dls.some(o=>o.x.d<=TODAY))}${chip(act.filter(c=>!c.nextDate).length,t('noDate'))}</div>`;
   h+=`<div class="bar"><b>${esc(t('causeList'))}</b><input type="date" id="causeD" value="${esc(ui.cause)}" aria-label="${esc(t('causeList'))}"><button class="sm" type="button" data-a="causePdf">${esc(t('pdf'))}</button><button class="sm" type="button" data-a="causeXls">${esc(t('excel'))}</button><button class="sm" type="button" data-a="causePrint">${esc(t('print'))}</button></div>`;
   if(!cases.length)return h+`<div class="empty"><h3>${esc(t('emptyDiary'))}</h3><p>${esc(t('emptyDiary2'))}</p></div>`;
@@ -312,9 +314,10 @@ function detail(id){
 /* ---------- forms ---------- */
 function dlRow(x){const lab=x.label||'';const known=TASKS.includes(lab);return `<div class="dlrow"><label><span>${esc(t('label'))}</span><select data-f="task">${TASKS.map(k=>`<option ${k===(known?lab:'Other')?'selected':''}>${esc(k)}</option>`).join('')}</select><input data-f="label" value="${esc(known?'':lab)}" placeholder="${esc(t('otherTask'))}" style="margin-top:4px;${known?'display:none':''}"></label><label><span>${esc(t('dueDate'))}</span><input type="date" data-f="d" value="${esc(x.d||'')}"></label><label><span>${esc(t('remindBefore'))}</span><select data-f="rem">${[1,2,3,7].map(n=>`<option value="${n}" ${n===(+x.rem||2)?'selected':''}>${n} ${esc(t('days'))}</option>`).join('')}</select></label><button class="sm ghost danger" type="button" data-a="rmDl" aria-label="${esc(t('del'))}">✕</button><input type="hidden" data-f="done" value="${x.done?1:''}"></div>`}
 function fillPicks(root){root.querySelectorAll('[data-pick]').forEach(box=>{const k=box.dataset.pick;let list;
-  if(k==='court'){const recent=[...new Set(cases.map(c=>c.court).filter(Boolean))].slice(-6);list=[...new Set([...recent,...COURTS])].slice(0,14)}
+  if(k==='ctype')list=COURT_TYPES;else if(k==='city'){const rc=cases.map(c=>(c.court||'').split(',').slice(1).join(',').trim()).filter(Boolean);list=[...new Set([...CITIES,...rc])].slice(0,14).concat(['Other'])}
+  else if(k==='task')list=TASKS.filter(x=>x!=='Other');else if(k==='rem')list=[['0',0],['1',1],['2',2],['3',3],['7',7]];else if(k==='jumpT')list=[['+3',3],['+7',7],['+15',15],['+30',30]];
   else if(k==='stage')list=STAGES;else if(k==='jump')list=[['+7',7],['+14',14],['+21',21],['+30',30]];
-  box.innerHTML=list.map(x=>Array.isArray(x)?`<button type="button" data-a="pick" data-k="jump" data-v="${x[1]}">${esc(x[0])} ${esc(t('days'))}</button>`:`<button type="button" data-a="pick" data-k="${k}" data-v="${esc(x)}">${esc(x)}</button>`).join('')})}
+  box.innerHTML=list.map(x=>Array.isArray(x)?`<button type="button" data-a="pick" data-k="${k==='rem'?'rem':k==='jumpT'?'jumpT':'jump'}" data-v="${x[1]}">${esc(x[0])} ${esc(t('days'))}</button>`:`<button type="button" data-a="pick" data-k="${k}" data-v="${esc(x)}">${esc(x)}</button>`).join('')})}
 function openCase(c){
   const f=E($('#caseForm'));f.reset();f.dataset.id=c?c.id:'';
   $('#cfTitle').textContent=c?t('edit'):t('newCase').replace('+','').trim();
@@ -345,16 +348,30 @@ E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const
 function openClient(id){const f=E($('#clientForm'));f.reset();curClient=id||null;const c=id?clients.find(x=>x.id===id):null;
   $('#clTitle').textContent=c?(c.name||t('untitledClient')):t('clientNew');
   if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';addMics();
+  $('#clEdit').open=!c;
   $('#delClientBtn').style.display=c&&isAdmin?'':'none';delete $('#delClientBtn').dataset.sure;$('#delClientBtn').textContent=t('del');
   clientCases(id);if(!$('#clientDlg').open)$('#clientDlg').showModal()}
+function nextInst(cid){let cum=0;const pd=paid(cid);for(const p of (F(cid).plan||[]).slice().sort((a,b)=>a.d<b.d?-1:1)){cum+=+p.amt||0;if(cum>pd)return{...p,due:Math.min(+p.amt||0,cum-pd)}}return null}
+const dl=d=>{const n=daysLeft(d);return n<0?`<span class="danger">${esc(t('overdue'))}</span>`:n===0?esc(t('today')):n+' '+esc(t('daysLeft'))};
+function caseCard(x){const ni=isAdmin?nextInst(x.id):null,dls=(x.deadlines||[]).filter(d=>!d.done&&d.d).sort((a,b)=>a.d<b.d?-1:1),last=(x.hearings||[]).slice(-1)[0];
+  return `<div class="ccard"><h6><a href="#" data-a="open" data-id="${esc(x.id)}">${esc(ctitle(x))}</a></h6>
+  <div class="ln meta">${esc(stL(x.status))}${x.court?' · '+esc(x.court):''}${x.caseNo?' · '+esc(x.caseNo):''}</div>
+  <div class="ln"><span>${esc(t('nextDate'))}: <b>${fd(x.nextDate)}</b>${x.nextDate&&x.status==='Active'?' ('+dl(x.nextDate)+')':''}</span>${x.stage?`<span class="tag">${esc(x.stage)}</span>`:''}</div>
+  ${last?`<div class="ln meta">${esc(t('lastHearing'))}: ${fd(last.d)} — ${esc(last.note||'—')}</div>`:''}
+  ${isAdmin?`<div class="ln"><span>${esc(t('agreed'))} <b>${rs(owed(x.id))}</b></span><span>${esc(t('received'))} <b>${rs(paid(x.id))}</b></span><span>${esc(t('balance'))} <b style="color:var(--tape)">${rs(bal(x.id))}</b></span></div>
+  <div class="ln">${ni?`<span>${esc(t('feeDueOn'))}: <b>${rs(ni.due)}</b> · ${fd(ni.d)} (${dl(ni.d)}) · ${esc(t('remindClient'))}: ${+ni.rem||0} ${esc(t('days'))}</span>`:`<span class="meta">${esc(t('noFeeDate'))}</span>`}</div>`:''}
+  ${dls.map(d=>`<div class="ln"><span><b>${esc(d.label)}</b> · ${fd(d.d)} (${dl(d.d)}) · ${esc(t('remindBefore'))}: ${d.rem===0?0:(+d.rem||2)} ${esc(t('days'))}</span></div>`).join('')}
+  <div class="acts"><button class="sm" type="button" data-a="hear" data-id="${esc(x.id)}">${esc(t('update'))}</button><button class="sm" type="button" data-a="task" data-id="${esc(x.id)}">${esc(t('addTask'))}</button>${isAdmin?`<button class="sm" type="button" data-a="pay" data-id="${esc(x.id)}">${esc(t('addFee'))}</button><button class="sm" type="button" data-a="inst" data-id="${esc(x.id)}">${esc(t('feeDueDate'))}</button>`:''}</div></div>`}
 function clientCases(id){const cs=id?cases.filter(x=>x.clientId===id):[];if(!id){$('#clCases').innerHTML='';return}
-  const groups={};cs.forEach(x=>{(groups[x.type||'Other']=groups[x.type||'Other']||[]).push(x)});
-  const tot=cs.reduce((a,x)=>a+owed(x.id),0),rec=cs.reduce((a,x)=>a+paid(x.id),0),b=clientBal(id),w=isAdmin&&b?feeRemLink(id):'';
-  $('#clCases').innerHTML=`<h4>${esc(t('caseClient'))} (${cs.length})</h4>${isAdmin?`<div class="sum"><span>${esc(t('agreed'))} <b>${rs(tot)}</b></span><span>${esc(t('received'))} <b>${rs(rec)}</b></span><span>${esc(t('balance'))} <b style="color:var(--tape)">${rs(b)}</b></span></div>`:''}
-  ${Object.entries(groups).map(([ty,list])=>`<div class="grp"><h5>${esc(ty)} · ${list.length}</h5><div class="hist">${list.map(x=>`<div><a href="#" data-a="open" data-id="${esc(x.id)}">${esc(ctitle(x))}</a> <span class="meta">${esc(stL(x.status))} · ${fd(x.nextDate)}</span>${isAdmin&&owed(x.id)?`<span class="sp"></span><span class="meta">${rs(owed(x.id))} · ${esc(t('balance'))} <b>${rs(bal(x.id))}</b></span>`:''}</div>`).join('')}</div></div>`).join('')||'<div class="meta">—</div>'}
-  <div class="acts" style="margin-top:10px"><button type="button" class="sm pri" data-a="newCase">${esc(t('newCase'))}</button>${w?`<a class="btn sm" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('feeReminder'))}</a>`:''}</div>`}
+  const cl=cli(id),groups={};cs.sort((a,b)=>(a.status==='Active'?0:1)-(b.status==='Active'?0:1)).forEach(x=>{(groups[x.type||'Other']=groups[x.type||'Other']||[]).push(x)});
+  const tot=cs.reduce((a,x)=>a+owed(x.id),0),rec=cs.reduce((a,x)=>a+paid(x.id),0),b=clientBal(id),w=isAdmin&&b?feeRemLink(id):'',n=waNum(cl.phone);
+  $('#clCases').innerHTML=`<div class="cl-top">${cl.phone?`<a class="btn sm" href="tel:${esc(String(cl.phone).replace(/[^\d+]/g,''))}">${esc(t('call'))} ${esc(cl.phone)}</a>`:''}${n?`<a class="btn sm" href="https://wa.me/${n}" target="_blank" rel="noopener">${esc(t('whatsapp'))}</a>`:''}${w?`<a class="btn sm" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('feeReminder'))}</a>`:''}<button type="button" class="sm pri" data-a="newCase">${esc(t('newCase'))}</button></div>
+  ${isAdmin&&cs.length?`<div class="sum" style="margin-top:10px"><span>${esc(t('agreed'))} <b>${rs(tot)}</b></span><span>${esc(t('received'))} <b>${rs(rec)}</b></span><span>${esc(t('balance'))} <b style="color:var(--tape)">${rs(b)}</b></span></div>`:''}
+  ${Object.entries(groups).map(([ty,list])=>`<div class="grp"><h5>${esc(ty)} · ${list.length}</h5>${list.map(caseCard).join('')}</div>`).join('')||`<p class="meta">${esc(t('noCasesYet'))}</p>`}`}
 
 
+E($('#taskForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;if(!f.d.value){f.d.focus();return}
+  const d=strip(c);d.deadlines=[...(d.deadlines||[]),{label:f.label.value.trim()||'Task',d:f.d.value,rem:Math.max(0,+f.rem.value||0),done:false}];if(await put('cases',c.id,d)){$('#taskDlg').close();toast(t('saved'))}});
 E($('#hearForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;
   const d=strip(c);d.hearings=[...(d.hearings||[]),{d:f.d.value||TODAY,note:f.note.value.trim(),next:f.next.value}];
   d.nextDate=f.next.value;if(f.stage.value.trim())d.stage=f.stage.value.trim();d.status=f.status.value;
@@ -362,13 +379,13 @@ E($('#hearForm')).addEventListener('submit',async e=>{e.preventDefault();const f
 
 function openMoney(kind,id){moneyKind=kind;curId=id;const c=byId(id),f=E($('#moneyForm'));f.reset();f.d.value=TODAY;f.bill.checked=true;
   $('#mTitle').textContent=kind==='pay'?t('addFee').replace('+','').trim():kind==='exp'?t('addExp').replace('+','').trim():t('addInst').replace('+','').trim();
-  $('#mModeL').style.display=kind==='pay'?'':'none';$('#mBillL').style.display=kind==='exp'?'':'none';
+  $('#mModeL').style.display=kind==='pay'?'':'none';$('#mBillL').style.display=kind==='exp'?'':'none';$('#mRemL').style.display=kind==='inst'?'':'none';fillPicks($('#moneyDlg'));
   if(kind==='inst')f.d.value=addDays(TODAY,30);
   $('#mCase').textContent=ctitle(c)+' · '+t('balance')+' '+rs(bal(id));addMics();$('#moneyDlg').showModal()}
 E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=+f.amt.value||0;if(!amt){f.amt.focus();return}
   const fz=strip(F(id));const item={d:f.d.value||TODAY,amt,note:f.note.value.trim()};let key='payments';
   if(moneyKind==='pay'){item.mode=f.mode.value;const y=item.d.slice(0,4);const n=allPays().filter(p=>(p.rno||'').startsWith('MLA-'+y)).map(p=>+p.rno.split('-')[2]||0);item.rno='MLA-'+y+'-'+pad4(Math.max(0,...n)+1)}
-  else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else key='plan';
+  else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else{key='plan';item.rem=Math.max(0,+f.rem.value||0)}
   fz[key]=[...(fz[key]||[]),item];
   if(await put('fees',id,fz)){$('#moneyDlg').close();toast(moneyKind==='pay'?rs(amt)+' · '+item.rno:t('saved'))}});
 const pad4=n=>String(n).padStart(4,'0');
@@ -392,7 +409,8 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'readyDl':if(READY){download(READY.file);if(READY.opt.wa)window.open(READY.opt.wa,'_blank');READY=null;$('#readyDlg').close()}break;
   case 'rmItem':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const fz=strip(F(curId)),k=el.dataset.k;(fz[k]||[]).splice(i,1);if(await put('fees',curId,fz))toast(t('deleted'));break}
   case 'dlDone':{const c=byId(id);const d=strip(c);if(d.deadlines&&d.deadlines[i]){d.deadlines[i].done=true;if(await put('cases',id,d))toast(t('done'))}break}
-  case 'pick':{const lab=el.closest('label');const inp=lab&&lab.querySelector('input');if(!inp)break;if(el.dataset.k==='jump'){const base=E($('#hearForm')).d.value||TODAY;inp.value=addDays(base,+el.dataset.v)}else inp.value=el.dataset.v;el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));break}
+  case 'pick':{const lab=el.closest('label');const inp=lab&&lab.querySelector('input');if(!inp)break;const k=el.dataset.k,v=el.dataset.v;if(k==='jump'){const base=E($('#hearForm')).d.value||TODAY;inp.value=addDays(base,+v)}else if(k==='jumpT')inp.value=addDays(TODAY,+v);else if(k==='ctype'||k==='city'){const parts=inp.value.split(',');let ty=parts[0].trim(),ci=parts.slice(1).join(',').trim();if(k==='ctype')ty=v;else if(v==='Other'){inp.value=ty?ty+', ':'';inp.focus();break}else ci=v;if(!ci&&k==='ctype')ci='Bahawalpur';inp.value=[ty,ci].filter(Boolean).join(', ')}else inp.value=v;el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));break}
+  case 'task':{curId=id;const c=byId(id),f=E($('#taskForm'));f.reset();f.rem.value=2;$('#tkCase').textContent=ctitle(c)+' · '+cname(c);fillPicks($('#taskDlg'));$('#taskDlg').showModal();break}
   case 'feeRem':{const w=feeRemLink(id);if(w)window.open(w,'_blank');else toast(t('noPhone'));break}
   case 'addDl':$('#dlRows').insertAdjacentHTML('beforeend',dlRow({}));break;
   case 'rmDl':el.closest('.dlrow').remove();break;

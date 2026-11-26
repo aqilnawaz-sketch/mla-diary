@@ -105,6 +105,9 @@ dialog::backdrop{background:#0009}
 .lockbox .ghost{color:var(--gold2);border-color:#3a321c}.lockbox .acts{justify-content:center}
 .mic{margin-top:6px}.mic.on{background:var(--tape2);color:var(--tape);border-color:var(--tape)}
 .pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.pick button{min-height:34px;padding:0 10px;font-size:13px;font-weight:500;border-radius:99px}.pick button.on{background:var(--gold);color:#16120a;border-color:var(--gold)}
+details summary{cursor:pointer;font-weight:600;color:var(--gold2);min-height:28px}
+.ccard{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;display:grid;gap:6px}.ccard .ln{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:14px}.ccard .ln b{font-variant-numeric:tabular-nums}.ccard h6{margin:0;font:600 16px "IBM Plex Sans",sans-serif}.ccard a{color:var(--ink)}
+.cl-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .grp{margin-top:10px}.grp h5{margin:8px 0 4px;font:600 14px Cinzel,serif;color:var(--gold2)}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--gold);color:#16120a;font-weight:600;padding:12px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw}
 .toast.on{opacity:1}
@@ -154,7 +157,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
       <label><span data-t="fir"></span><input name="fir"></label>
       <label><span data-t="ps"></span><input name="ps"></label>
       <label><span data-t="sections"></span><input name="sections"></label>
-      <label style="grid-column:1/-1"><span data-t="court"></span><input name="court" list="courts"><div class="pick" data-pick="court"></div></label>
+      <label style="grid-column:1/-1"><span data-t="court"></span><input name="court" list="courts"><small class="meta" data-t="courtType"></small><div class="pick" data-pick="ctype"></div><small class="meta" data-t="city"></small><div class="pick" data-pick="city"></div></label>
       <label><span data-t="judge"></span><input name="judge"></label>
       <label><span data-t="type"></span><select name="type"></select></label>
       <label><span data-t="status"></span><select name="status"></select></label>
@@ -173,6 +176,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   <div class="dh"><h3 id="clTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db">
     <div id="clCases"></div>
+    <details id="clEdit" class="panel" style="margin:0"><summary data-t="editClient"></summary><div class="db" style="padding:12px 0 0">
     <div class="g2">
       <label><span data-t="client"></span><input name="name"></label>
       <label><span data-t="phone"></span><input name="phone" inputmode="tel"></label>
@@ -183,7 +187,16 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     <label><span data-t="address"></span><input name="address"></label>
     <label><span data-t="notes"></span><textarea name="notes" rows="2" data-voice></textarea></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button><button type="button" class="ghost danger" data-a="delClient" id="delClientBtn" data-t="del"></button></div>
+    </div></details>
   </div>
+</form></dialog>
+<dialog id="taskDlg"><form id="taskForm">
+  <div class="dh"><h3 data-t="addTask"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><div class="meta" id="tkCase"></div>
+    <label><span data-t="label"></span><input name="label"><div class="pick" data-pick="task"></div></label>
+    <label><span data-t="dueDate"></span><input type="date" name="d"><div class="pick" data-pick="jumpT"></div></label>
+    <label><span data-t="remindBefore"></span><input name="rem" type="number" min="0" max="30" value="2" inputmode="numeric"><div class="pick" data-pick="rem"></div></label>
+    <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div></div>
 </form></dialog>
 
 <dialog id="detDlg"><div class="dh"><h3 id="dTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div><div class="db" id="dBody"></div></dialog>
@@ -206,6 +219,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     <div class="meta" id="mCase"></div>
     <div class="g2"><label><span data-t="amount"></span><input type="number" name="amt" min="0" inputmode="numeric"></label><label><span data-t="date"></span><input type="date" name="d"></label></div>
     <label id="mModeL"><span data-t="mode"></span><select name="mode"><option>Cash</option><option>Bank transfer</option><option>JazzCash</option><option>Easypaisa</option><option>Cheque</option></select></label>
+    <label id="mRemL"><span data-t="remindClient"></span><input name="rem" type="number" min="0" max="30" value="2" inputmode="numeric"><div class="pick" data-pick="rem"></div></label>
     <label id="mBillL" class="chk"><input type="checkbox" name="bill" checked><span data-t="billable"></span></label>
     <label><span data-t="note"></span><input name="note" data-voice></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div>

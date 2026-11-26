@@ -1,5 +1,6 @@
 window.I18N={
 en:{
+editClient:"Edit client details",addTask:"+ Notice / reply / filing",courtType:"Court",city:"City",remindClient:"Remind client",lastHearing:"Last hearing",feeDueOn:"Fee due",noFeeDate:"No fee due date set",feeDueDate:"Fee due date",noCasesYet:"No cases yet.",call:"Call",
 noPerm:"Not allowed for this account.",needOnline:"Needs internet — try again when online.",onlyDevice:"Large file saved on this device only",fileMissing:"File not found on this device",
 scan:"Scan with camera",waPdf:"WhatsApp PDF",print:"Print",emailBtn:"Email",readyShare:"File ready",shareNow:"Share now",download:"Download",
 importExcel:"Import from Excel",importHelp:"Bring in clients and cases from an Excel sheet (columns like Client, Phone, Case, Court, Next date, Agreed fee, Received). Download the template to see the layout.",template:"Download template",importNone:"No rows with a client or case found.",imported:"Imported",importFound:"Rows found",importNow:"Import now",
@@ -51,6 +52,7 @@ waRem:"Hearing reminder",waRec:"Send receipt note",prev:"Previous month",next:"N
 nothingDay:"No hearings on this day.",untitledClient:"Unnamed client",lockFee:"Agreed fee",
 },
 ur:{
+editClient:"موکل کی تفصیل میں ترمیم",addTask:"+ نوٹس / جواب / فائلنگ",courtType:"عدالت",city:"شہر",remindClient:"موکل کو یاددہانی",lastHearing:"آخری سماعت",feeDueOn:"فیس واجب",noFeeDate:"فیس کی تاریخ مقرر نہیں",feeDueDate:"فیس کی تاریخ",noCasesYet:"ابھی کوئی مقدمہ نہیں۔",call:"کال",
 noPerm:"اس اکاؤنٹ کو اجازت نہیں۔",needOnline:"انٹرنیٹ درکار ہے — آن لائن ہو کر دوبارہ کوشش کریں۔",onlyDevice:"بڑی فائل صرف اسی ڈیوائس پر محفوظ",fileMissing:"فائل اس ڈیوائس پر موجود نہیں",
 scan:"کیمرہ سے اسکین",waPdf:"واٹس ایپ PDF",print:"پرنٹ",emailBtn:"ای میل",readyShare:"فائل تیار",shareNow:"ابھی شیئر کریں",download:"ڈاؤن لوڈ",
 importExcel:"Excel سے درآمد",importHelp:"Excel شیٹ سے موکلین اور مقدمات شامل کریں (کالم: Client، Phone، Case، Court، Next date، Agreed fee، Received)۔ ترتیب دیکھنے کے لیے ٹیمپلیٹ ڈاؤن لوڈ کریں۔",template:"ٹیمپلیٹ ڈاؤن لوڈ",importNone:"کوئی موکل یا مقدمہ نہیں ملا۔",imported:"شامل ہو گئے",importFound:"قطاریں ملیں",importNow:"ابھی شامل کریں",
