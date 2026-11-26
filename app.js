@@ -158,12 +158,36 @@ async function makeReceipt(cid,i){
     doc.setTextColor(20,20,20);doc.setFontSize(10);doc.setFont('helvetica','normal');
     doc.text('Receipt no: '+(p.rno||'—'),12,48);doc.text('Date: '+fd(p.d),W-12,48,{align:'right'});
     const L=[['Received from',cname(c)||'—'],['Case',ctitle(c)],['Case no.',c.caseNo||'—'],['Court',c.court||'—'],['Amount',rs(p.amt)],['In words','Rupees '+words(p.amt)+' only'],['Mode',p.mode||'Cash'],['Remarks',p.note||'—'],['Total fee agreed',rs(owed(cid))],['Received to date',rs(paid(cid))],['Balance',rs(bal(cid))]];
-    doc.autoTable({body:L,startY:53,theme:'plain',styles:{fontSize:10,cellPadding:1.6},columnStyles:{0:{fontStyle:'bold',cellWidth:38}},margin:{left:12,right:12}});
-    const y=doc.lastAutoTable.finalY+22;doc.line(W-62,y,W-12,y);doc.setFontSize(9);doc.text('Signature',W-37,y+5,{align:'center'});
+    if(F(cid).agreedOn)L.push(['Fee agreement','Dated '+fd(F(cid).agreedOn)]);
+    doc.autoTable({body:L,startY:53,theme:'plain',styles:{fontSize:9.5,cellPadding:1.3},columnStyles:{0:{fontStyle:'bold',cellWidth:38}},margin:{left:12,right:12}});
+    let ny=doc.lastAutoTable.finalY+3;doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('Note:',12,ny+3);doc.setFont('helvetica','normal');doc.setFontSize(7.4);RECEIPT_NOTE.forEach((x,i)=>{const T=doc.splitTextToSize((i+1)+'. '+x,W-30);doc.text(T,22,ny+3);ny+=T.length*3.3+0.6});
+    const y=Math.max(ny+14,doc.lastAutoTable.finalY+20);doc.line(W-62,y,W-12,y);doc.setFontSize(9);doc.text('Signature',W-37,y+5,{align:'center'});
     doc.setFontSize(7.5);doc.setTextColor(90,90,90);doc.text(FIRM.contact,W/2,204,{align:'center'});
     return{name:'Receipt-'+(p.rno||p.d)+'.pdf',blob:doc.output('blob'),c,p};
   }
 }
+const AGREE_CLAUSES=fee=>[
+ ['Professional fee','The Client has engaged the Advocate for the case described above for an agreed professional fee of '+fee+'. The fee covers professional services in this case before the forum stated above.'],
+ ['Whole fee payable on signing','Upon signing this agreement, the entire agreed professional fee for all stages of the case becomes payable as agreed. Where payment is allowed in instalments, the instalments are only a convenience as to timing; the whole fee remains owed in full.'],
+ ['Fee not tied to stage or result','The fee becomes due upon commencement of the engagement and not upon the conclusion or outcome of the case. It is for professional services and does not depend on the result of the case.'],
+ ['No refund or reduction','No part of the fee shall be refunded or reduced on account of early settlement, compromise, withdrawal, acquittal, consent decree, decision at any stage, or any other reason whatsoever. If the matter concludes at any stage, the entire agreed fee becomes immediately payable in full.'],
+ ['Full fee on revocation or change of counsel','If the Client revokes the Wakalat Nama, engages another counsel, stops pursuing the case, or quits at any stage for any reason, the entire agreed fee for the whole case, including stages not yet commenced, becomes immediately due and payable. No apportionment by stage shall be made.'],
+ ['Court fee and expenses separate','Court fee, process fee, copying charges, clerkage, stamp duty, travel and all other out-of-pocket expenses are not included in the professional fee. They shall be paid by the Client separately and in advance, or reimbursed immediately on demand.'],
+ ['Lien','The Advocate shall retain a lien over all documents, files, correspondence, court orders and original papers relating to the case until the full agreed fee and expenses are paid (Section 221, Contract Act, 1872).'],
+ ['Retainer from recoveries','The Advocate may retain, out of any amount received on behalf of the Client in execution, decree, settlement or otherwise, a sum equal to the outstanding fee and expenses before remitting the balance (Section 217, Contract Act, 1872).'],
+ ['Attendance','The Client shall attend every hearing as informed by the Advocate or the chamber, and shall inform the Advocate in advance if unable to attend.'],
+ ['Client’s absence','The Advocate shall bear no responsibility for any adverse order resulting from the Client’s absence, failure to attend, or failure to provide instructions, documents or expenses in time.'],
+ ['Limit of liability','In any event, the Advocate’s liability, if any, shall not exceed the professional fee actually received.'],
+ ['Wakalat Nama','This agreement is read together with the Wakalat Nama executed by the Client in this case.']];
+const RECEIPT_NOTE=['Received under the fee agreement / Wakalat Nama for this case.','The whole agreed fee for all stages is payable, even where it is paid in instalments.','No refund in any case, including compromise, withdrawal, acquittal, decision or change of counsel.','Court fee, copies, stamps and travel are separate from the professional fee.'];
+const UR_DECL='میں/ہم اقرار کرتے ہیں کہ یہ معاہدۂ فیس اور وکالت نامہ مجھے/ہمیں پڑھ کر سنایا گیا ہے، میں/ہم نے اسے سن کر اچھی طرح سمجھ لیا ہے اور اپنی آزاد مرضی سے، بغیر کسی دباؤ یا غلط بیانی کے، اس کی تمام شرائط قبول کی ہیں۔ میں/ہم تسلیم کرتے ہیں کہ دستخط/انگوٹھا لگانے کے بعد مقدمے کے تمام مراحل کی پوری طے شدہ فیس واجب الادا ہے، خواہ اقساط میں ادا کی جائے؛ اگر مقدمہ کسی بھی مرحلے پر صلح، واپسی، فیصلے، وکیل کی تبدیلی یا کسی بھی اور وجہ سے ختم ہو یا میں/ہم مقدمہ چھوڑ دیں تو بھی پوری فیس ادا کرنا ہوگی، اور ادا شدہ فیس کسی صورت واپس نہیں ہوگی۔ عدالتی فیس اور دیگر اخراجات اس کے علاوہ ہیں۔';
+const EN_DECL='I/We confirm that this fee agreement and the Wakalat Nama have been read out to me/us, that I/we have heard and fully understood them, and that I/we accept all their terms of my/our own free will, without any compulsion or misrepresentation. I/We accept that after signing, the whole agreed fee for all stages is payable, even if paid in instalments; that it remains payable in full if the case ends at any stage by compromise, withdrawal, decision, change of counsel or any other reason, or if I/we quit; and that fee paid is not refundable in any case. Court fee and expenses are separate.';
+async function urduImg(text,wPx){try{await document.fonts.load('30px "Noto Nastaliq Urdu"')}catch(x){}
+  const fs=30,lh=Math.round(fs*2.2),cv=document.createElement('canvas'),ctx=cv.getContext('2d');const font=fs+'px "Noto Nastaliq Urdu","Noto Naskh Arabic","Geeza Pro",serif';ctx.font=font;
+  const words=text.split(/\s+/),lines=[];let cur='';for(const w of words){const tt=cur?cur+' '+w:w;if(ctx.measureText(tt).width>wPx-20&&cur){lines.push(cur);cur=w}else cur=tt}if(cur)lines.push(cur);
+  cv.width=wPx;cv.height=lines.length*lh+24;const c2=cv.getContext('2d');c2.fillStyle='#fff';c2.fillRect(0,0,cv.width,cv.height);c2.fillStyle='#141414';c2.font=font;c2.direction='rtl';c2.textAlign='right';c2.textBaseline='middle';
+  lines.forEach((l,i)=>c2.fillText(l,wPx-10,14+lh*i+lh/2));return{data:cv.toDataURL('image/png'),w:cv.width,h:cv.height}}
+
 function pdfHead(doc,W,title){return logo().then(lg=>{doc.setFillColor(12,12,14);doc.rect(0,0,W,30,'F');doc.setDrawColor(201,164,68);doc.setLineWidth(0.6);doc.line(0,30,W,30);if(lg)doc.addImage(lg,'JPEG',6,3,24,24);
   doc.setTextColor(228,196,110);doc.setFont('times','bold');doc.setFontSize(15);doc.text(FIRM.name.toUpperCase(),W/2+12,12,{align:'center'});doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(232,223,200);doc.text(FIRM.adv,W/2+12,18,{align:'center'});doc.text(FIRM.addr,W/2+12,23,{align:'center'});
   doc.setTextColor(150,118,40);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text(title,W/2,40,{align:'center'});doc.setTextColor(20,20,20);doc.setFont('helvetica','normal');doc.setFontSize(10)})}
@@ -172,11 +196,18 @@ async function feeDoc(cid,kind){const c=byId(cid);if(!c)return;const cl=cli(c.cl
     doc.text('Date: '+fd(TODAY),W-14,48,{align:'right'});
     const info=[['Client',cl.name||'—'],...(cl.cnic?[['CNIC',cl.cnic]]:[]),...(cl.address?[['Address',cl.address]]:[]),...(cl.phone?[['Phone',cl.phone]]:[]),['Case',ctitle(c)],...(c.opp?[['Opposite party',c.opp]]:[]),...(c.caseNo?[['Case no.',c.caseNo]]:[]),...(c.court?[['Court',c.court]]:[])];
     doc.autoTable({body:info,startY:52,theme:'plain',styles:{fontSize:10,cellPadding:1.4},columnStyles:{0:{fontStyle:'bold',cellWidth:40}},margin:{left:14,right:14}});let y=doc.lastAutoTable.finalY+4;
-    if(kind==='agree'){doc.autoTable({body:[['Professional fee agreed',rs(fz.fee)]],startY:y,theme:'grid',styles:{fontSize:11,cellPadding:2.5},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},margin:{left:14,right:14}});y=doc.lastAutoTable.finalY+4;
-      const plan=(fz.plan||[]).slice().sort((a,b)=>a.d<b.d?-1:1);if(plan.length){doc.autoTable({head:[['#','Due date','Amount']],body:plan.map((p,i)=>[i+1,fd(p.d),rs(p.amt)]),startY:y,styles:{fontSize:9.5},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},columnStyles:{2:{halign:'right'}},margin:{left:14,right:14}});y=doc.lastAutoTable.finalY+4}
-      const terms=['The fee above is for professional services in the case and forum stated above.','Court fee, stamp paper, certified copies, typing and travel are not included and are charged separately.','The fee is for professional services and does not depend on the result of the case.','Instalments, if any, are payable on the dates shown. Receipts are issued for every payment.','Proceedings in any other forum, appeal or revision are not covered unless agreed in writing.'];
-      doc.setFont('helvetica','bold');doc.text('Terms',14,y+4);doc.setFont('helvetica','normal');doc.setFontSize(9.5);let yy=y+10;terms.forEach((x,i)=>{const L=doc.splitTextToSize((i+1)+'. '+x,W-28);doc.text(L,14,yy);yy+=L.length*5});
-      yy+=22;doc.line(14,yy,80,yy);doc.line(W-80,yy,W-14,yy);doc.setFontSize(9);doc.text('Client',47,yy+5,{align:'center'});doc.text('Advocate',W-47,yy+5,{align:'center'})}
+    if(kind==='agree'){doc.autoTable({body:[['Professional fee agreed (whole case, all stages)',rs(fz.fee)]],startY:y,theme:'grid',styles:{fontSize:10.5,cellPadding:2.5},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},margin:{left:14,right:14}});y=doc.lastAutoTable.finalY+3;
+      const plan=(fz.plan||[]).slice().sort((a,b)=>a.d<b.d?-1:1);if(plan.length){doc.autoTable({head:[['#','Instalment due','Amount']],body:plan.map((p,i)=>[i+1,fd(p.d),rs(p.amt)]),startY:y,styles:{fontSize:9},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},columnStyles:{2:{halign:'right'}},margin:{left:14,right:14}});y=doc.lastAutoTable.finalY+3}
+      doc.autoTable({head:[['#','Terms']],body:AGREE_CLAUSES(rs(fz.fee)).map((c,i)=>[i+1,{content:c[0]+'. '+c[1]}]),startY:y,styles:{fontSize:8.6,cellPadding:1.6,valign:'top'},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},columnStyles:{0:{cellWidth:8}},margin:{left:14,right:14},
+        didParseCell:d=>{if(d.section==='body'&&d.column.index===1)d.cell.styles.fontStyle='normal'}});y=doc.lastAutoTable.finalY+5;
+      if(y>230){doc.addPage();y=16}
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Declaration by the Client',14,y);y+=3;doc.setFont('helvetica','normal');
+      if(cl.noread){const im=await urduImg(UR_DECL,1100);const wmm=182,hmm=im.h*wmm/im.w;if(y+hmm>260){doc.addPage();y=16}doc.addImage(im.data,'PNG',14,y,wmm,hmm);y+=hmm+4}
+      else{doc.setFontSize(9);const L=doc.splitTextToSize(EN_DECL,182);if(y+L.length*4.4>260){doc.addPage();y=16}doc.text(L,14,y+4);y+=L.length*4.4+6}
+      if(y>240){doc.addPage();y=20}y+=16;doc.setDrawColor(150,118,40);doc.line(14,y,74,y);doc.line(W-74,y,W-14,y);
+      if(cl.noread){doc.rect(84,y-22,32,26)}doc.setFontSize(8.5);doc.text(cl.noread?'Client (signature)':'Client signature',44,y+5,{align:'center'});if(cl.noread)doc.text('Thumb impression',100,y+8,{align:'center'});doc.text('Advocate',W-44,y+5,{align:'center'});
+      y+=18;doc.line(14,y,74,y);doc.line(W-74,y,W-14,y);doc.text('Witness 1 (name, CNIC)',44,y+5,{align:'center'});doc.text('Witness 2 (name, CNIC)',W-44,y+5,{align:'center'});
+      if(!fz.agreedOn&&isAdmin)put('fees',cid,{...strip(fz),agreedOn:TODAY})}
     else{const rows=[['Agreed fee','',rs(fz.fee)],...(fz.expenses||[]).filter(e=>e.bill!==false).map(e=>[fd(e.d),'Expense'+(e.note?': '+e.note:''),rs(e.amt)]),...(fz.payments||[]).slice().sort((a,b)=>a.d<b.d?-1:1).map(p=>[fd(p.d),'Payment received '+(p.rno||'')+(p.mode?' ('+p.mode+')':''),'- '+rs(p.amt)])];
       doc.autoTable({head:[['Date','Details','Amount']],body:rows,foot:[['','Balance due',rs(bal(cid))]],startY:y,styles:{fontSize:9.5},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},footStyles:{fillColor:[245,223,160],textColor:[20,20,20],fontStyle:'bold'},columnStyles:{2:{halign:'right'}},margin:{left:14,right:14}});
       const ni=nextInst(cid);if(ni){doc.setFontSize(10);doc.text('Next payment due: '+rs(ni.due)+' on '+fd(ni.d),14,doc.lastAutoTable.finalY+8)}}
@@ -383,12 +414,12 @@ E($('#caseForm')).addEventListener('submit',async e=>{e.preventDefault();
   $('#caseDlg').close();toast(t('saved'));if($('#detDlg').open)detail(id);
 });
 E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curClient||newId('clients');
-  const d={...(curClient?strip(clients.find(c=>c.id===curClient)):{created:new Date().toISOString()})};for(const k of ['name','phone','cnic','ref','address','email','notes'])d[k]=f[k].value.trim();
+  const d={...(curClient?strip(clients.find(c=>c.id===curClient)):{created:new Date().toISOString()})};for(const k of ['name','phone','cnic','ref','address','email','notes'])d[k]=f[k].value.trim();d.noread=f.noread.checked;
   if(await put('clients',id,d)){curClient=id;toast(t('saved'));clientCases(id)}
 });
 function openClient(id){const f=E($('#clientForm'));f.reset();curClient=id||null;const c=id?clients.find(x=>x.id===id):null;
   $('#clTitle').textContent=c?(c.name||t('untitledClient')):t('clientNew');
-  if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';addMics();
+  if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';f.noread.checked=!!(c&&c.noread);addMics();
   $('#clEdit').open=!c;
   $('#delClientBtn').style.display=c&&isAdmin?'':'none';delete $('#delClientBtn').dataset.sure;$('#delClientBtn').textContent=t('del');
   clientCases(id);if(!$('#clientDlg').open)$('#clientDlg').showModal()}
@@ -429,7 +460,7 @@ E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const 
   if(moneyKind==='pay'){item.mode=f.mode.value;const y=item.d.slice(0,4);const n=allPays().filter(p=>(p.rno||'').startsWith('MLA-'+y)).map(p=>+p.rno.split('-')[2]||0);item.rno='MLA-'+y+'-'+pad4(Math.max(0,...n)+1)}
   else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else{key='plan';item.rem=Math.max(0,+f.rem.value||0)}
   fz[key]=[...(fz[key]||[]),item];
-  if(await put('fees',id,fz)){$('#moneyDlg').close();toast(moneyKind==='pay'?rs(amt)+' · '+item.rno:t('saved'))}});
+  if(await put('fees',id,fz)){$('#moneyDlg').close();if(moneyKind==='pay'){const idx=fz.payments.length-1;$('#rcptInfo').textContent=rs(amt)+' · '+item.rno+' · '+cname(byId(id));$$('#rcptDlg [data-a=receipt]').forEach(b=>{b.dataset.id=id;b.dataset.i=idx});$('#rcptDlg').showModal()}else toast(t('saved'))}});
 const pad4=n=>String(n).padStart(4,'0');
 
 /* ---------- events ---------- */
@@ -446,7 +477,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'newClient':openClient(null);break;
   case 'hear':{curId=id;const c=byId(id),f=E($('#hearForm'));f.reset();f.d.value=c.nextDate&&c.nextDate<=TODAY?c.nextDate:TODAY;f.stage.value=c.stage||'';f.status.value=c.status||'Active';$('#hCase').textContent=ctitle(c)+' · '+cname(c);fillPicks($('#hearDlg'));addMics();$('#hearDlg').showModal();break}
   case 'pay':openMoney('pay',id);break;case 'exp':openMoney('exp',id);break;case 'inst':openMoney('inst',id);break;
-  case 'receipt':receipt(id,i,el.dataset.how);break;
+  case 'receipt':if(el.closest('#rcptDlg'))$('#rcptDlg').close();receipt(id,i,el.dataset.how);break;
   case 'readyShare':if(READY){const r=READY;READY=null;$('#readyDlg').close();navigator.share({files:[r.file],...(r.opt.text?{text:r.opt.text}:{})}).catch(()=>{})}break;
   case 'readyDl':if(READY){download(READY.file);if(READY.opt.wa)window.open(READY.opt.wa,'_blank');READY=null;$('#readyDlg').close()}break;
   case 'rmItem':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const fz=strip(F(curId)),k=el.dataset.k;(fz[k]||[]).splice(i,1);if(await put('fees',curId,fz))toast(t('deleted'));break}
