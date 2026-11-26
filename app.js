@@ -79,11 +79,11 @@ async function put(coll,id,data){
       if(coll==='fees')C.fs.collection('fees').doc(id).set({p,u:Date.now()}).catch(e=>toast(cErr(e)));
       else{C.cache.set(id,{k:coll==='cases'?'case':'client',p,o:d});C.fs.collection('records').doc(id).set({k:coll==='cases'?'case':'client',p,u:Date.now(),by:C.email}).catch(e=>toast(cErr(e)))}
     }catch(e){toast('Could not save');return false}
-    applyLocal(coll,id,d);render();return true}
-  applyLocal(coll,id,d);await persist();render();return true}
+    applyLocal(coll,id,d);render();gQueue();return true}
+  applyLocal(coll,id,d);await persist();render();gQueue();return true}
 async function del(coll,id){if(!S.key)return false;
   if(CLOUD){C.cache.delete(id);C.fs.collection(coll==='fees'?'fees':'records').doc(id).delete().catch(e=>toast(cErr(e)))}
-  applyDel(coll,id);if(!CLOUD)await persist();render();return true}
+  applyDel(coll,id);if(!CLOUD)await persist();render();gQueue();return true}
 const newId=()=>Date.now().toString(36)+crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
 
 /* ---------- WhatsApp ---------- */
@@ -230,9 +230,11 @@ function vCases(){
 function vClients(){
   const q=ui.cq.toLowerCase();
   const list=clients.filter(c=>!q||[c.name,c.phone,c.cnic,c.address,c.ref].join(' ').toLowerCase().includes(q)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  let h=`<div class="bar"><input id="cq" type="search" placeholder="${esc(t('search'))}" value="${esc(ui.cq)}"><button type="button" class="sm" data-a="newClient">${esc(t('newClient'))}</button></div>`;
-  if(!list.length)return h+`<div class="empty">${esc(clients.length?t('noMatch'):t('noClients'))}</div>`;
-  return h+`<table class="stack"><thead><tr><th>${esc(t('client'))}</th><th>${esc(t('phone'))}</th><th>${esc(t('referred'))}</th><th class="n">${esc(t('caseCount'))}</th>${isAdmin?`<th class="n">${esc(t('balance'))}</th>`:''}</tr></thead><tbody>${list.map(c=>{const cs=cases.filter(x=>x.clientId===c.id);return `<tr data-a="openClient" data-id="${esc(c.id)}"><td><b>${esc(c.name||t('untitledClient'))}</b></td><td>${esc(c.phone)}</td><td>${esc(c.ref)}</td><td class="n">${cs.length}</td>${isAdmin?`<td class="n">${rs(cs.reduce((a,x)=>a+bal(x.id),0))}</td>`:''}</tr>`}).join('')}</tbody></table>`;
+  let h=`<div class="bar"><input id="cq" type="search" placeholder="${esc(t('search'))}" value="${esc(ui.cq)}"><button type="button" class="sm pri" data-a="newClient">${esc(t('newClient'))}</button></div>`;
+  if(!list.length)return h+`<div class="empty">${esc(clients.length?t('noMatch'):t('noClients'))}<p class="meta">${esc(t('clientsHow'))}</p></div>`;
+  return h+`<div class="rows">${list.map(c=>{const cs=cases.filter(x=>x.clientId===c.id),act=cs.filter(x=>x.status==='Active'),nx=act.map(x=>x.nextDate).filter(d=>d&&d>=TODAY).sort()[0],b=isAdmin?cs.reduce((a,x)=>a+bal(x.id),0):0,types=[...new Set(cs.map(x=>x.type||'Other'))];
+    return `<div class="row"><div class="main" data-a="openClient" data-id="${esc(c.id)}"><h3>${esc(c.name||t('untitledClient'))}</h3><div class="meta">${esc(c.phone||'')}${c.phone&&cs.length?' · ':''}${cs.length?cs.length+' '+esc(t('cases_n')):''}</div>
+    <div class="tags">${types.map(ty=>`<span class="tag">${esc(ty)}</span>`).join('')}${nx?`<span class="tag">${esc(t('nextHearing'))}: ${fd(nx)}</span>`:''}${isAdmin&&b?`<span class="tag due">${esc(t('remaining'))} ${rs(b)}</span>`:''}</div></div></div>`}).join('')}</div>`;
 }
 function allPays(){return cases.flatMap(c=>(F(c.id).payments||[]).map((p,i)=>({...p,c,i})))}
 function vFee(){
@@ -269,12 +271,12 @@ function vReports(){
   return h;
 }
 
-const TABS=[['diary','diary'],['calendar','calendar'],['cases','cases'],['clients','clients'],['fee','fee'],['reports','reports'],['settings','settings']];
+const TABS=[['clients','clients'],['diary','diary'],['calendar','calendar'],['cases','cases'],['fee','fee'],['reports','reports'],['settings','settings']];
 function render(){
   $('#tabs').innerHTML=TABS.filter(([v])=>v!=='fee'||isAdmin).map(([v,k])=>`<button type="button" data-a="tab" data-v="${v}" class="${v===view?'on':''}">${esc(t(k))}</button>`).join('');
   if(!S.key)return;
   const V={diary:vDiary,calendar:vCal,cases:vCases,clients:vClients,fee:vFee,reports:vReports,settings:vSettings};
-  $('#view').innerHTML=(view==='diary'?backupNote():'')+(V[view]||vDiary)();if(view==='settings')storeInfo();
+  $('#view').innerHTML=((view==='diary'||view==='clients')?gBanner()+backupNote():'')+(V[view]||vDiary)();if(view==='settings')storeInfo();
   $('#courts').innerHTML=[...new Set(cases.map(c=>c.court).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('');
   $('#clientList').innerHTML=clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||'')}</option>`).join('');
   if(curId&&$('#detDlg').open)detail(curId);
@@ -558,6 +560,7 @@ function vSettings(){
   if(CLOUD&&C.adv)h+=`<div class="panel"><h3>${esc(t('team'))}</h3><p class="meta">${esc(t('teamHelp'))}</p><div class="hist" id="staffList"><div class="meta">…</div></div>
     <form id="staffForm" class="g2" style="margin-top:10px" autocomplete="off"><label><span>${esc(t('munshiEmail'))}</span><input name="e" type="email" inputmode="email"></label><label><span>${esc(t('tempPass'))}</span><input name="p" type="text" autocomplete="off"></label><div style="align-self:end"><button class="pri" type="submit">${esc(t('addMunshi'))}</button></div></form></div>`;
   h+=`<div class="panel"><h3>${esc(t('faceId'))}</h3><p class="meta">${esc(t('bioHelp'))}</p><div id="bioBox" class="acts"></div></div>`;
+  h+=gPanel();
   h+=`<div class="panel"><h3>${esc(t('reminders'))}</h3><p class="meta">${esc(t('icsHelp'))}</p><p class="meta">${esc(t('lastIcs'))}: <b>${settings.icsAt?fd(settings.icsAt):esc(t('never'))}</b></p><button class="pri" type="button" data-a="ics">${esc(t('icsBtn'))}</button></div>`;
   h+=`<div class="panel"><h3>${esc(t('importExcel'))}</h3><p class="meta">${esc(t('importHelp'))}</p>`+(IMPORT?`<div class="note">${esc(t('importFound'))}: <b>${IMPORT.length}</b> — ${IMPORT.slice(0,3).map(r=>esc(r.title||r.client)).join(', ')}${IMPORT.length>3?'…':''}</div><div class="acts"><button class="pri" type="button" data-a="runImport">${esc(t('importNow'))}</button><button type="button" class="ghost" data-a="cancelImport">${esc(t('cancel'))}</button></div>`:`<div class="acts"><button type="button" data-a="pickExcel">${esc(t('importExcel'))}</button><button type="button" class="ghost" data-a="xlTemplate">${esc(t('template'))}</button></div>`)+`</div>`;
   h+=`<div class="panel"><h3>${esc(t('backup'))}</h3><p class="meta">${esc(t('backupHelp'))}</p><p>${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b></p>
@@ -566,6 +569,39 @@ function vSettings(){
   <div class="panel"><h3 class="danger">${esc(CLOUD?t('removeDevice'):t('erase'))}</h3><p class="meta">${esc(CLOUD?t('removeDeviceHelp'):t('eraseHelp'))}</p><button type="button" class="ghost danger" data-a="eraseStart">${esc(CLOUD?t('removeDevice'):t('erase'))}</button></div>`;
   return h}
 async function storeInfo(){staffList();bioBox();const el=$('#storeInfo');if(!el||!navigator.storage||!navigator.storage.estimate)return;try{const e=await navigator.storage.estimate();const p=navigator.storage.persisted?await navigator.storage.persisted():false;el.textContent=`${t('storageUsed')}: ${(e.usage/1048576).toFixed(1)} MB · ${p?t('persistOn'):t('persistOff')}`}catch(x){}}
+
+/* ---------- Google Calendar sync (iPhone + Android via Google Calendar) ---------- */
+const GCID=window.MLA_GOOGLE_CLIENT_ID||'';
+const G={tok:null,exp:0,busy:false,timer:null,last:''};
+const gOK=()=>G.tok&&Date.now()<G.exp;
+function gConnect(prompt){return new Promise(async(ok,no)=>{try{await load('https://accounts.google.com/gsi/client')}catch(x){no(new Error(t('needOnline')));return}
+  const c=google.accounts.oauth2.initTokenClient({client_id:GCID,scope:'https://www.googleapis.com/auth/calendar.app.created',prompt:prompt||'',
+    callback:r=>{if(r.error){no(r);return}G.tok=r.access_token;G.exp=Date.now()+((+r.expires_in||3600)-120)*1000;ok()},error_callback:e=>no(e)});c.requestAccessToken()})}
+async function gApi(method,path,body){const r=await fetch('https://www.googleapis.com/calendar/v3'+path,{method,headers:{Authorization:'Bearer '+G.tok,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  if(r.status===401){G.tok=null;throw new Error('auth')}if(r.status===204)return null;const j=await r.json().catch(()=>null);if(!r.ok){const e=new Error((j&&j.error&&j.error.message)||r.status);e.status=r.status;throw e}return j}
+async function gid(key){const h=new Uint8Array(await crypto.subtle.digest('SHA-256',te.encode(key)));return 'mla'+[...h.slice(0,18)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+const at9=n=>n>0?n*1440-540:0;
+function gEvents(){const ev=[];const allDay=(d)=>({start:{date:d},end:{date:addDays(d,1)}});
+  for(const c of cases.filter(c=>c.status==='Active')){const who=cname(c),ph=cphone(c);
+    if(c.nextDate)ev.push({key:'h|'+c.id,body:{summary:'Hearing: '+ctitle(c)+(who?' — '+who:''),description:[c.court,c.stage?'For: '+c.stage:'',c.caseNo?'Case no: '+c.caseNo:'',ph?'Client: '+who+' '+ph:'',isAdmin&&bal(c.id)?'Fee remaining: '+rs(bal(c.id)):''].filter(Boolean).join('\n'),location:c.court||'',...allDay(c.nextDate),colorId:'9',reminders:{useDefault:false,overrides:[{method:'popup',minutes:240}]}}});
+    (c.deadlines||[]).forEach((x,i)=>{if(x.done||!x.d)return;const n=x.rem===0?0:(+x.rem||2);ev.push({key:'d|'+c.id+'|'+i,body:{summary:(x.label||'Filing')+': '+ctitle(c),description:[who,c.court].filter(Boolean).join(' · '),...allDay(x.d),colorId:'11',reminders:{useDefault:false,overrides:[{method:'popup',minutes:at9(n)},{method:'popup',minutes:240}].filter((o,j,a)=>a.findIndex(z=>z.minutes===o.minutes)===j)}}})});
+    if(isAdmin){const ni=nextInst(c.id);if(ni)ev.push({key:'f|'+c.id,body:{summary:'Fee due '+rs(ni.due)+(who?' — '+who:''),description:ctitle(c)+'\nRemaining on case: '+rs(bal(c.id))+(ph?'\nClient phone: '+ph:''),...allDay(ni.d),colorId:'5',reminders:{useDefault:false,overrides:[{method:'popup',minutes:at9(+ni.rem||0)}]}}})}}
+  return ev}
+async function gSync(manual){if(!GCID||!(settings.gcal&&settings.gcal.on))return;if(G.busy){G.again=1;return}if(!gOK()){if(manual)toast(t('gcalReconnect'));render();return}
+  G.busy=true;try{const st=settings.gcal;st.h=st.h||{};
+    if(!st.cal){const cal=await gApi('POST','/calendars',{summary:'MLA Diary',timeZone:'Asia/Karachi',description:'Hearings, filings and fee due dates from MLA Diary'});st.cal=cal.id}
+    const cal=encodeURIComponent(st.cal);const ev=gEvents(),seen=new Set();let n=0;
+    for(const e of ev){const id=await gid(e.key);seen.add(id);const body={...e.body,id,status:'confirmed'};const hash=JSON.stringify(body);if(st.h[id]===hash)continue;
+      try{await gApi('PUT','/calendars/'+cal+'/events/'+id,body)}catch(x){if(x.status===404)await gApi('POST','/calendars/'+cal+'/events',body);else throw x}st.h[id]=hash;n++}
+    for(const id of Object.keys(st.h))if(!seen.has(id)){try{await gApi('DELETE','/calendars/'+cal+'/events/'+id)}catch(x){if(x.status!==404&&x.status!==410)throw x}delete st.h[id];n++}
+    st.at=new Date().toISOString();await persist();if(manual)toast(t('gcalSynced')+' ('+n+')')}
+  catch(x){if(x.message==='auth'){toast(t('gcalReconnect'))}else if(x.status===404&&settings.gcal){settings.gcal.cal='';settings.gcal.h={};await persist()}else toast(t('gcalFail'))}
+  finally{G.busy=false;render();if(G.again){G.again=0;gQueue()}}}
+function gQueue(){if(!(settings.gcal&&settings.gcal.on)||!gOK())return;clearTimeout(G.timer);G.timer=setTimeout(()=>gSync(false),4000)}
+function gBanner(){if(!GCID||!(settings.gcal&&settings.gcal.on)||gOK())return '';return `<div class="note">${esc(t('gcalPaused'))} <button class="sm" type="button" data-a="gcalSync">${esc(t('gcalSyncNow'))}</button></div>`}
+function gPanel(){const on=settings.gcal&&settings.gcal.on;
+  if(!GCID)return `<div class="panel"><h3>${esc(t('gcal'))}</h3><p class="meta">${esc(t('gcalNeedsSetup'))}</p></div>`;
+  return `<div class="panel"><h3>${esc(t('gcal'))}</h3><p class="meta">${esc(t('gcalHelp'))}</p>${on?`<p><span class="tag paid">${esc(t('gcalOn'))}</span> ${settings.gcal.at?`<span class="meta">${esc(t('lastSync'))}: ${fd(settings.gcal.at.slice(0,10))} ${settings.gcal.at.slice(11,16)} UTC</span>`:''}</p><div class="acts"><button class="pri" type="button" data-a="gcalSync">${esc(t('gcalSyncNow'))}</button><button class="ghost danger" type="button" data-a="gcalOff">${esc(t('gcalOff'))}</button></div>`:`<button class="pri" type="button" data-a="gcalConnect">${esc(t('gcalConnect'))}</button>`}</div>`}
 
 /* ---------- Face ID / fingerprint (passkey + PRF) ---------- */
 const bioKey=()=>CLOUD?'bio_'+C.email:'bio';
@@ -610,7 +646,7 @@ async function showLock(){
   $('#lock').hidden=false;$('#appWrap').hidden=true;setTimeout(()=>{try{(mode==='login'?f.em:f.p1).focus()}catch(x){}},50);
 }
 async function opened(){
-  $('#lock').hidden=true;$('#appWrap').hidden=false;view='diary';isAdmin=!CLOUD||!!C.fk;applyLang();bump();
+  $('#lock').hidden=true;$('#appWrap').hidden=false;view='clients';isAdmin=!CLOUD||!!C.fk;applyLang();bump();
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(x){}
   load(LIB.pdf).then(()=>load(LIB.at)).catch(()=>{});logo();
 }
@@ -654,6 +690,9 @@ $('#eraseForm').addEventListener('submit',async e=>{e.preventDefault();if(E(e.ta
   S.key=null;S.meta=null;load_({});lock();toast(t('erased'))});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]');if(!el)return;const a=el.dataset.a;
   if(a==='lockNow')lock();
+  if(a==='gcalConnect'){try{await gConnect('consent');settings.gcal={on:true,cal:(settings.gcal&&settings.gcal.cal)||'',h:(settings.gcal&&settings.gcal.h)||{}};await persist();await gSync(true)}catch(x){toast(t('gcalFail'))}}
+  if(a==='gcalSync'){try{if(!gOK())await gConnect('');await gSync(true)}catch(x){toast(t('gcalFail'))}}
+  if(a==='gcalOff'){settings.gcal={on:false,cal:settings.gcal&&settings.gcal.cal||'',h:{}};G.tok=null;await persist();render();toast(t('gcalOffDone'))}
   if(a==='bioOn'){const v=($('#bioPass')||{}).value||'';if(!v){toast(t('password'));return}bioEnable(v)}
   if(a==='bioOff')bioOff();
   if(a==='bioUnlock')bioUnlock();
