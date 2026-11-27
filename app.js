@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v17';const IT=600000;
+let TODAY=iso(new Date());const APPV='v18';const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -25,6 +25,22 @@ const fuOpen=c=>{const l=(c.log||[]).filter(x=>x.fu&&!x.fuDone);return l.length?
 const appts=()=>settings.appts||[];
 const apptsOn=d=>appts().filter(x=>x.d===d&&!x.done).sort((x,y)=>(x.time||'').localeCompare(y.time||''));
 const apptRow=x=>`<div class="${x.kind==='Personal'?'':'p'}"><b>${esc(x.time||'')}</b> ${esc(x.title||'')} <span class="meta">${esc(t(x.kind==='Personal'?'personal':'appointment'))}${x.cid&&cli(x.cid).name?' · '+esc(cli(x.cid).name):''}${x.note?' · '+esc(x.note):''}</span><span class="sp"></span><button class="sm ghost" type="button" data-a="apptEdit" data-id="${esc(x.id)}">${esc(t('edit'))}</button><button class="sm" type="button" data-a="apptDone" data-id="${esc(x.id)}">${esc(t('done'))}</button></div>`;
+const OTYPES=['Certified copy','Affidavit','Process fee','Contact client','Collect documents','Check court order','Submit application','Other'];
+const otasks=()=>settings.tasks||[];
+const courtsDir=()=>settings.courts||[];
+const who_=()=>CLOUD?(C.email||'staff'):'Advocate';
+let AUD=[];
+const AUDF={title:'Title',nextDate:'Next date',status:'Status',court:'Court',judge:'Judge',stage:'Stage',caseNo:'Case no.',opp:'Opposite party',name:'Name',phone:'Phone',cnic:'CNIC',cstatus:'Client status',closeReason:'Closure',linkTo:'Linked case'};
+function audDiff(coll,old,nw){if(!old)return coll==='fees'?'Fee record created':'Created';const out=[];
+  if(!old.archived&&nw.archived)return 'Moved to archive';if(old.archived&&!nw.archived)return 'Restored from archive';
+  for(const [k,l] of Object.entries(AUDF)){const x=old[k]??'',y=nw[k]??'';if(String(x)!==String(y))out.push(k==='linkTo'?l+' changed':l+': '+(x||'—')+' → '+(y||'—'))}
+  if(coll==='fees'&&(+old.fee||0)!==(+nw.fee||0))out.push('Agreed fee changed');
+  const n=(o,k)=>(o[k]||[]).length,nv=(o,k)=>(o[k]||[]).filter(x=>x.void).length;
+  for(const [k,l] of [['hearings','Hearing result'],['docs','Document'],['payments','Payment'],['expenses','Expense'],['adjust','Discount/write-off'],['plan','Fee due date'],['log','Contact log'],['deadlines','Filing/notice'],['parties','Party']]){const d=n(nw,k)-n(old,k);if(d>0)out.push(l+' added'+(k==='docs'?': '+((nw.docs||[]).slice(-1)[0]||{}).name:''));else if(d<0)out.push(l+' removed');if(nv(nw,k)>nv(old,k))out.push(l+' cancelled')}
+  if((old.deadlines||[]).filter(x=>x.done).length<(nw.deadlines||[]).filter(x=>x.done).length)out.push('Filing/notice marked done');
+  if(JSON.stringify(old.nextAct||null)!==JSON.stringify(nw.nextAct||null))out.push(nw.nextAct&&nw.nextAct.done?'Next action done':'Next action updated');
+  return out.join('; ')}
+function audit(coll,id,what){if(!what)return;AUD.push({at:new Date().toISOString(),by:who_(),coll,id,what});if(AUD.length>3000)AUD=AUD.slice(-3000)}
 const naOpen=c=>c&&c.nextAct&&c.nextAct.text&&!c.nextAct.done?c.nextAct:null;
 const FIRM={name:'Mian Law Associates',adv:'Mian Aqil Nawaz, Advocate High Court',addr:'Chamber No. 39, District Courts, Kachahery Chowk, Bahawalpur',contact:'0333-3621111 · mianlawassociates1@gmail.com · mlabwp.com.pk'};
 const LIB={pdf:'vendor/jspdf.umd.min.js',at:'vendor/jspdf.plugin.autotable.min.js',xlsx:'vendor/xlsx.full.min.js'};
@@ -48,7 +64,7 @@ const encJ=(k,obj)=>enc(k,te.encode(JSON.stringify(obj))),decJ=async(k,o)=>JSON.
 const b64=u=>{let s='';const c=0x8000;for(let i=0;i<u.length;i+=c)s+=String.fromCharCode.apply(null,u.subarray(i,i+c));return btoa(s)};
 const unb64=s=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
 let saving=Promise.resolve();
-const snapOf=()=>({schema:1,clients:[...clients,...arc.clients],cases:[...cases,...arc.cases],fees,settings});
+const snapOf=()=>({schema:1,clients:[...clients,...arc.clients],cases:[...cases,...arc.cases],fees,settings,audit:AUD});
 function persist(){const snap=snapOf();saving=saving.then(async()=>{if(!S.key)return;if(CLOUD)await idbPut('kv','settings_'+C.email,settings);else await idbPut('kv','state',await encJ(S.key,snap))}).catch(()=>toast('Could not save on this device — storage may be full'));return saving}
 const A={db:true};
 const CFG=(window.MLA_CLOUD&&window.MLA_CLOUD.firebase)?window.MLA_CLOUD:null,CLOUD=!!CFG;
@@ -94,6 +110,7 @@ function applyDel(coll,id){if(coll==='fees')delete fees[id];else if(coll==='case
 async function put(coll,id,data){
   if(!S.key){toast(t('locked'));return false}
   const d={...clone(data),updated:new Date().toISOString()};
+  {const old=coll==='fees'?fees[id]:(coll==='cases'?[...cases,...arc.cases]:[...clients,...arc.clients]).find(x=>x.id===id);audit(coll,id,audDiff(coll,old,d))}
   if(CLOUD){if(coll==='fees'&&!C.fk){toast(t('staffNote'));return false}
     try{const p=await encS(coll==='fees'?C.fk:C.ok,d);
       if(coll==='fees')C.fs.collection('fees').doc(id).set({p,u:Date.now()}).catch(e=>toast(cErr(e)));
@@ -101,7 +118,7 @@ async function put(coll,id,data){
     }catch(e){toast('Could not save');return false}
     applyLocal(coll,id,d);render();gQueue();return true}
   applyLocal(coll,id,d);await persist();render();gQueue();return true}
-async function del(coll,id){if(!S.key)return false;
+async function del(coll,id){if(!S.key)return false;audit(coll,id,'Deleted forever');
   if(CLOUD){C.cache.delete(id);C.fs.collection(coll==='fees'?'fees':'records').doc(id).delete().catch(e=>toast(cErr(e)))}
   applyDel(coll,id);if(!CLOUD)await persist();render();gQueue();return true}
 async function archiveRec(coll,id){const arr=coll==='cases'?cases:clients;const o=arr.find(x=>x.id===id);if(!o)return false;const at=new Date().toISOString();
@@ -299,15 +316,24 @@ function prepPanel(tml){const tom=addDays(TODAY,1),ap=apptsOn(tom);
   const dls=cases.filter(c=>c.status==='Active').flatMap(c=>(c.deadlines||[]).filter(x=>!x.done&&x.d===tom).map(x=>({c,x})));
   const fus=clients.filter(c=>fuOpen(c)&&fuOpen(c).fu===tom);
   const fees2=isAdmin?cases.filter(c=>c.status==='Active').map(c=>({c,ni:nextInst(c.id)})).filter(o=>o.ni&&o.ni.d===tom):[];
-  if(!tml.length&&!ap.length&&!nas.length&&!dls.length&&!fus.length&&!fees2.length)return `<h2 class="sec">${esc(t('prepTitle'))}</h2><div class="empty">${esc(t('prepNone'))}</div>`;
+  const ot=otasks().filter(x=>!x.done&&x.d===tom);
+  if(!tml.length&&!ap.length&&!nas.length&&!dls.length&&!fus.length&&!fees2.length&&!ot.length)return `<h2 class="sec">${esc(t('prepTitle'))}</h2><div class="empty">${esc(t('prepNone'))}</div>`;
   const docsN=tml.reduce((s,c)=>s+(c.docs||[]).length,0);
   return `<div class="panel"><h3>${esc(t('prepTitle'))} · ${fd(tom)}</h3>
   ${tml.length?`<p class="meta">📁 ${esc(t('prepCarry'))}: <b>${tml.length}</b>${docsN?' · '+docsN+' '+esc(t('bkDocs')):''}</p><div class="hist">${tml.sort((a,b)=>(a.court||'').localeCompare(b.court||'')).map(c=>{const w=waHear(c),na=naOpen(c);return `<div><a href="#" data-a="open" data-id="${esc(c.id)}"><b>${esc(ctitle(c))}</b></a> <span class="meta">${esc(cname(c))}${c.court?' · '+esc(c.court):''}${c.stage?' · '+esc(c.stage):''}</span>${na?`<br><span style="color:var(--gold2)">➜ ${esc(na.text)}</span>`:''}<span class="sp"></span>${w?`<a class="btn sm ghost" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('waRem'))}</a>`:''}</div>`}).join('')}</div>`:''}
-  ${nas.length||dls.length?`<h4>${esc(t('prepTodo'))}</h4><div class="hist">${nas.map(c=>`<div>➜ ${esc(naOpen(c).text)} <span class="meta">${esc(naOpen(c).who==='Munshi'?t('munshi'):t('advocate'))} · ${esc(ctitle(c))}</span></div>`).join('')}${dls.map(o=>`<div class="x"><b>${esc(o.x.label)}</b> · ${esc(ctitle(o.c))}</div>`).join('')}</div>`:''}
+  ${nas.length||dls.length||ot.length?`<h4>${esc(t('prepTodo'))}</h4><div class="hist">${ot.map(otRow).join('')}${nas.map(c=>`<div>➜ ${esc(naOpen(c).text)} <span class="meta">${esc(naOpen(c).who==='Munshi'?t('munshi'):t('advocate'))} · ${esc(ctitle(c))}</span></div>`).join('')}${dls.map(o=>`<div class="x"><b>${esc(o.x.label)}</b> · ${esc(ctitle(o.c))}</div>`).join('')}</div>`:''}
   ${ap.length?`<h4>${esc(t('appointments'))}</h4><div class="hist">${ap.map(apptRow).join('')}</div>`:''}
   ${fus.length?`<h4>${esc(t('prepContact'))}</h4><div class="hist">${fus.map(c=>`<div><a href="#" data-a="openClient" data-id="${esc(c.id)}">${esc(c.name||'')}</a> <span class="meta">${esc(fuOpen(c).note||'')}</span></div>`).join('')}</div>`:''}
   ${fees2.length?`<h4>${esc(t('feesDueTom'))}</h4><div class="hist">${fees2.map(o=>`<div><b>${rs(o.ni.due)}</b> · ${esc(cname(o.c))} · ${esc(ctitle(o.c))}</div>`).join('')}</div>`:''}
   ${tml.length?`<div class="acts" style="margin-top:10px"><button class="sm" type="button" data-a="causePdf">${esc(t('causeList'))}</button><button class="sm" type="button" data-a="roundSheet">${esc(t('roundSheet'))}</button><button class="sm" type="button" data-a="waAll">${esc(t('waAll'))}</button></div>`:''}</div>`}
+const otRow=x=>{const c=x.cid&&byId(x.cid);return `<div class="${x.done?'':x.d&&x.d<TODAY?'x':''}">${x.done?'<s>':''}<b>${esc(x.type&&x.type!=='Other'?x.type:'')}</b>${x.type&&x.type!=='Other'&&x.text?' — ':''}${esc(x.text||'')}${x.done?'</s>':''} <span class="meta">${esc(x.who==='Munshi'?t('munshi'):t('advocate'))}${x.d?' · '+fd(x.d):''}${x.done&&x.doneOn?' · ✓ '+fd(x.doneOn):''}</span>${c?` · <a href="#" data-a="open" data-id="${esc(c.id)}">${esc(ctitle(c))}</a>`:''}<span class="sp"></span>${x.done?'':`<button class="sm" type="button" data-a="otDone" data-id="${esc(x.id)}">${esc(t('done'))}</button>`}<button class="sm ghost" type="button" data-a="otEdit" data-id="${esc(x.id)}">${esc(t('edit'))}</button></div>`};
+function vTasks(){const open=otasks().filter(x=>!x.done).sort((x,y)=>(x.d||'9')<(y.d||'9')?-1:1),done=otasks().filter(x=>x.done).sort((x,y)=>(y.doneOn||'')<(x.doneOn||'')?-1:1).slice(0,20);
+  const mine=w=>open.filter(x=>(x.who||'Advocate')===w);
+  let h=`<div class="acts" style="margin-bottom:14px"><button class="pri" type="button" data-a="otEdit">${esc(t('otAdd'))}</button></div>`;
+  if(!open.length)h+=`<div class="empty">${esc(t('otNone'))}</div>`;
+  for(const w of ['Advocate','Munshi']){const l=mine(w);if(l.length)h+=`<h2 class="sec">${esc(w==='Munshi'?t('munshi'):t('advocate'))} · ${l.length}</h2><div class="hist">${l.map(otRow).join('')}</div>`}
+  if(done.length)h+=`<h2 class="sec">${esc(t('otDoneList'))}</h2><div class="hist">${done.map(otRow).join('')}</div>`;
+  return h}
 function vHome(){
   const act=cases.filter(c=>c.status==='Active'),tom=addDays(TODAY,1),wk=addDays(TODAY,7),dd=new Date(TODAY+'T00:00');
   const tl=act.filter(c=>c.nextDate===TODAY).sort((a,b)=>(a.court||'').localeCompare(b.court||'')),tml=act.filter(c=>c.nextDate===tom);
@@ -330,6 +356,7 @@ function vHome(){
   if(fus.length)h+=`<h2 class="sec">${esc(t('followUps'))}</h2><div class="hist">${fus.map(o=>`<div class="${o.f.fu<TODAY?'x':''}"><a href="#" data-a="openClient" data-id="${esc(o.c.id)}"><b>${esc(o.c.name||t('untitledClient'))}</b></a> · ${fd(o.f.fu)}${o.f.note?' · <span class="meta">'+esc(o.f.note)+'</span>':''}<span class="sp"></span>${o.c.phone?`<a class="btn sm ghost" href="tel:${esc(dg(o.c.phone))}">${esc(t('call'))}</a>`:''}<button class="sm" type="button" data-a="logFor" data-id="${esc(o.c.id)}">${esc(t('logAdd'))}</button></div>`).join('')}</div>`;
   h+=`<h2 class="sec">${esc(t('todayH'))}</h2>`+(tl.length?`<div class="rows">${tl.map(c=>rowHTML(c)).join('')}</div>`:`<div class="empty">${esc(t('nothingToday'))}</div>`);
   h+=prepPanel(tml);
+  {const ot=otasks().filter(x=>!x.done&&(!x.d||x.d<=wk)).sort((x,y)=>(x.d||'9')<(y.d||'9')?-1:1);if(ot.length)h+=`<h2 class="sec">${esc(t('otTitle'))}</h2><div class="hist">${ot.slice(0,15).map(otRow).join('')}</div>`}
   const nw=nas.filter(o=>!o.na.d||o.na.d>=TODAY).slice(0,15);if(nw.length)h+=`<h2 class="sec">${esc(t('nextActions'))}</h2><div class="hist">${nw.map(o=>`<div><b>${esc(o.na.text)}</b> <span class="meta">${esc(o.na.who==='Munshi'?t('munshi'):t('advocate'))}${o.na.d?' · '+fd(o.na.d):''}</span> · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm ghost" type="button" data-a="naDone" data-id="${esc(o.c.id)}">${esc(t('done'))}</button></div>`).join('')}</div>`;
   const pw=pend.filter(o=>o.x.d>=TODAY);if(pw.length)h+=`<h2 class="sec">${esc(t('filingsWeek'))}</h2><div class="hist">${pw.map(o=>`<div><b>${fd(o.x.d)}</b> ${esc(o.x.label||'')} · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(o.c.id)}" data-i="${o.i}">${esc(t('done'))}</button></div>`).join('')}</div>`;
   if(fdue.length)h+=`<h2 class="sec">${esc(t('feesDueWeek'))}</h2><div class="hist">${fdue.map(o=>`<div class="${o.ni.d<TODAY?'x':''}"><b>${rs(o.ni.due)}</b> · ${fd(o.ni.d)} · <a href="#" data-a="openClient" data-id="${esc(o.c.clientId||'')}">${esc(cname(o.c)||t('untitledClient'))}</a> · ${esc(ctitle(o.c))}<span class="sp"></span><button class="sm" type="button" data-a="pay" data-id="${esc(o.c.id)}">${esc(t('addFee'))}</button></div>`).join('')}</div>`;
@@ -408,7 +435,11 @@ function vFee(){
   h+=`<h2 class="sec">${esc(t('recentPay'))}</h2>`+(rec.length?`<table class="stack"><thead><tr><th>${esc(t('date'))}</th><th>${esc(t('client'))}</th><th>${esc(t('title'))}</th><th>${esc(t('mode'))}</th><th class="n">${esc(t('amount'))}</th><th>${esc(t('receipt'))}</th></tr></thead><tbody>${rec.map(p=>`<tr><td style="white-space:nowrap">${fd(p.d)}</td><td>${esc(cname(p.c))}</td><td>${esc(ctitle(p.c))}</td><td>${esc(p.mode)}</td><td class="n">${rs(p.amt)}</td><td><button class="sm" type="button" data-a="receipt" data-how="wa" data-id="${esc(p.c.id)}" data-i="${p.i}">${esc(t('waPdf'))}</button> <button class="sm ghost" type="button" data-a="receipt" data-how="print" data-id="${esc(p.c.id)}" data-i="${p.i}">${esc(t('print'))}</button></td></tr>`).join('')}</tbody></table>`:`<div class="empty">${esc(t('noPay'))}</div>`);
   return h;
 }
-function vReports(){
+function vAudit(){if(!isAdmin)return '';const l=AUD.slice(-60).reverse();if(!l.length)return '';
+  const name=x=>x.coll==='clients'?(cli(x.id).name||'—'):ctitle([...cases,...arc.cases].find(c=>c.id===x.id)||{});
+  return `<h2 class="sec">${esc(t('changeHist'))}</h2><div class="hist">${l.map(x=>`<div><span class="meta">${fd(x.at.slice(0,10))} ${x.at.slice(11,16)} · ${esc(x.by)}</span> · <b>${esc(name(x))}</b><br>${esc(x.what)}</div>`).join('')}</div>`}
+function vReports(){return vReports_()+vAudit()}
+function vReports_(){
   const m=TODAY.slice(0,7),act=cases.filter(c=>c.status==='Active');
   const hm=cases.reduce((a,c)=>a+(c.hearings||[]).filter(h=>(h.d||'').startsWith(m)).length,0);
   let h=`<div class="chips">${chip(act.length,t('pending'))}${chip(cases.filter(c=>c.status==='Decided').length,t('decided'))}${chip(clients.length,t('clients'))}${chip(hm,t('hearMonth'))}</div>`;
@@ -423,8 +454,8 @@ function vReports(){
 }
 
 const TABS=[['home','home','⌂'],['clients','clients','👥'],['diary','diary','📅'],['fee','fee','₨'],['more','more','☰']];
-const GROUP={home:'home',clients:'clients',diary:'diary',calendar:'diary',cases:'diary',fee:'fee',reports:'more',settings:'more'};
-const SUB={diary:[['diary','list'],['calendar','calendar'],['cases','cases']],more:[['settings','settings'],['reports','reports']]};
+const GROUP={home:'home',clients:'clients',diary:'diary',calendar:'diary',cases:'diary',tasks:'diary',fee:'fee',reports:'more',settings:'more'};
+const SUB={diary:[['diary','list'],['calendar','calendar'],['cases','cases'],['tasks','tasksTab']],more:[['settings','settings'],['reports','reports']]};
 const lastSub={diary:'diary',more:'settings'};
 function render(){MASK=!!(settings.priv&&isAdmin);try{render_()}finally{MASK=false}}
 function render_(){
@@ -432,10 +463,10 @@ function render_(){
   $('#tabs').innerHTML=TABS.filter(([v])=>v!=='fee'||isAdmin).map(([v,k,ic])=>`<button type="button" data-a="tab" data-v="${v}" data-nav="1" class="${v===g?'on':''}"><i aria-hidden="true">${ic}</i>${esc(t(k))}</button>`).join('');
   const pb=$('#privBtn');if(pb){pb.style.display=isAdmin?'':'none';pb.textContent=settings.priv?t('showAmounts'):t('hideAmounts')}
   if(!S.key)return;
-  const V={home:vHome,diary:vDiary,calendar:vCal,cases:vCases,clients:vClients,fee:vFee,reports:vReports,settings:vSettings};
+  const V={tasks:vTasks,home:vHome,diary:vDiary,calendar:vCal,cases:vCases,clients:vClients,fee:vFee,reports:vReports,settings:vSettings};
   const seg=SUB[g]?`<div class="seg">${SUB[g].map(([v,k])=>`<button type="button" data-a="tab" data-v="${v}" class="${v===view?'on':''}">${esc(t(k))}</button>`).join('')}</div>`:'';
   $('#view').innerHTML=seg+(view!=='settings'?gBanner()+backupNote():'')+(V[view]||vHome)();if(view==='settings')storeInfo();
-  $('#courts').innerHTML=[...new Set(cases.map(c=>c.court).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('');
+  {const use={};cases.forEach(c=>{if(c.court)use[c.court]=(use[c.court]||0)+1});$('#courts').innerHTML=[...new Set([...courtsDir().map(x=>x.name),...Object.keys(use).sort((x,y)=>use[y]-use[x])])].filter(Boolean).map(c=>{const z=courtsDir().find(x=>x.name===c);return `<option value="${esc(c)}">${z&&z.judge?esc(z.judge):''}</option>`}).join('')}
   $('#clientList').innerHTML=clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||'')}</option>`).join('');
   if(curId&&$('#detDlg').open)detail(curId);
   if(curClient&&$('#clientDlg').open)clientCases(curClient);
@@ -479,7 +510,10 @@ function detail_(id){
   const dls=(c.deadlines||[]).map((x,i)=>({...x,i})).sort((a,b)=>(a.d||'').localeCompare(b.d||''));
   if(dls.length)h+=`<h4>${esc(t('deadlines'))}</h4><div class="hist">${dls.map(x=>`<div class="${x.done?'p':x.d<=TODAY?'x':''}"><b>${fd(x.d)}</b> ${esc(x.label||'')}${x.done?' ✓':''}<span class="sp"></span>${x.done?'':`<button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(id)}" data-i="${x.i}">${esc(t('done'))}</button>`}</div>`).join('')}</div>`;
   h+=`<h4>${esc(t('docs'))}</h4><div class="hist">${(c.docs||[]).length?(c.docs||[]).map((d,i)=>`<div><a href="#" data-a="viewDoc" data-i="${i}">${esc(d.name||'Document')}</a> <span class="meta">${fd(d.d)}</span><span class="sp"></span>${isAdmin?`<button class="sm ghost danger" type="button" data-a="delDoc" data-i="${i}">${esc(t('del'))}</button>`:''}</div>`).join(''):`<div class="meta">${esc(t('noDocs'))}</div>`}</div>`;
+  {const ot=otasks().filter(x=>x.cid===id&&!x.done);h+=`<h4>${esc(t('otTitle'))}</h4><div class="hist">${ot.map(otRow).join('')||`<div class="meta">${esc(t('otNone'))}</div>`}</div><button class="sm ghost" type="button" data-a="otEdit" data-cid="${esc(id)}">${esc(t('otAdd'))}</button>`}
   h+=`<h4>${esc(t('hearHist'))}</h4><div class="hist">${hs.length?hs.map(x=>`<div><b>${fd(x.d)}</b> — ${esc(x.note||'—')}${x.next?` <span class="meta">→ ${fd(x.next)}</span>`:''}${x.order?`<br><span class="meta">${esc(t('orderText'))}: </span><i>${esc(x.order)}</i>`:''}</div>`).join(''):`<div class="meta">${esc(t('noHear'))}</div>`}</div>`;
+  {const hist=AUD.filter(x=>x.id===id).slice(-25).reverse();if(isAdmin&&hist.length)h+=`<details class="more"><summary>${esc(t('changeHist'))} · ${hist.length}</summary><div class="hist">${hist.map(x=>`<div><span class="meta">${fd(x.at.slice(0,10))} ${x.at.slice(11,16)} · ${esc(x.by)}${x.coll==='fees'?' · '+esc(t('fee')):''}</span><br>${esc(x.what)}</div>`).join('')}</div></details>`}
+  h+=`<div class="acts" style="margin-top:12px"><button class="sm pri" type="button" data-a="caseFile" data-id="${esc(id)}">${esc(t('caseFilePdf'))}</button></div>`;
   if(isAdmin)h+=`<div style="border-top:1px solid var(--line);padding-top:12px"><button class="sm ghost danger" type="button" data-a="delCase">${esc(t('toArchive'))}</button></div>`;
   $('#dBody').innerHTML=h;
   if(!$('#detDlg').open)$('#detDlg').showModal();
@@ -548,6 +582,33 @@ E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const
 });
 const relRow=(r,self)=>`<div class="ptrow"><select data-f="rel">${RELS.map(x=>`<option ${x===r.rel?'selected':''}>${esc(x)}</option>`).join('')}</select><select data-f="cid"><option value=""></option>${clients.filter(x=>x.id!==self).sort((x,y)=>(x.name||'').localeCompare(y.name||'')).map(x=>`<option value="${esc(x.id)}" ${x.id===r.id?'selected':''}>${esc(x.name||t('untitledClient'))}${x.phone?' · '+esc(x.phone):''}</option>`).join('')}</select><button class="sm ghost danger" type="button" data-a="rmPt" aria-label="Remove">✕</button></div>`;
 let DUP_OK=false,DUPID='';
+E($('#otForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(f.type.value==='Other'&&!f.text.value.trim()){f.text.focus();return}
+  const x={id:f.dataset.id||'o'+newId(),type:f.type.value,text:f.text.value.trim(),who:f.who.value,d:f.d.value,cid:f.cid.value,done:false,by:who_(),at:new Date().toISOString()};
+  const old=otasks().find(z=>z.id===x.id);if(old){x.by=old.by;x.at=old.at}settings.tasks=[...otasks().filter(z=>z.id!==x.id),x];if(x.cid)audit('cases',x.cid,(old?'Task edited: ':'Task added: ')+x.type+(x.text?' — '+x.text:''));
+  await persist();$('#otDlg').close();render();toast(t('saved'))});
+E($('#courtForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(!f.name.value.trim()){f.name.focus();return}
+  const z={id:f.dataset.id||'k'+newId()};for(const k of ['name','cat','city','judge','room','note'])z[k]=f[k].value.trim();
+  const old=courtsDir().find(x=>x.id===z.id);settings.courts=[...courtsDir().filter(x=>x.id!==z.id),z];
+  if(old&&old.name!==z.name&&confirm(t('courtRename')))for(const c of cases.filter(c=>c.court===old.name))await put('cases',c.id,{...strip(c),court:z.name});
+  await persist();$('#courtDlg').close();render();toast(t('saved'))});
+async function caseFile(cid){const c=byId(cid);if(!c)return;const cl=cli(c.clientId),fz=F(cid);
+  try{const J=await jsPDF();const doc=new J({unit:'mm',format:'a4'});const W=210;await pdfHead(doc,W,'CASE FILE');
+    doc.text('Prepared: '+fd(TODAY),W-14,48,{align:'right'});let y=52;
+    const sec=(title,rows,head)=>{if(!rows.length)return;if(y>250){doc.addPage();y=16}doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(150,118,40);doc.text(title,14,y+4);doc.setTextColor(20,20,20);doc.setFont('helvetica','normal');
+      doc.autoTable({...(head?{head:[head]}:{}),body:rows,startY:y+6,theme:head?'striped':'plain',styles:{fontSize:9,cellPadding:1.4,valign:'top'},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},...(head?{}:{columnStyles:{0:{fontStyle:'bold',cellWidth:42}}}),margin:{left:14,right:14}});y=doc.lastAutoTable.finalY+4};
+    const kv=(k,v)=>v?[[k,String(v)]]:[];
+    sec('Client',[...kv('Name',cl.name),...kv('Phone',cl.phone),...kv('CNIC',cl.cnic),...kv('Address',cl.address),...kv('Email',cl.email),...kv('Referred by',cl.ref)]);
+    const par=c.linkTo&&[...cases,...arc.cases].find(x=>x.id===c.linkTo),kids=[...cases,...arc.cases].filter(x=>x.linkTo===cid);
+    sec('Case particulars',[...kv('Title',ctitle(c)),...kv('Type',c.type),...kv('Status',c.status+(c.closeReason?' — '+c.closeReason+(c.closeDate?' ('+fd(c.closeDate)+')':''):'')),...kv('Court',c.court),...kv('Judge',c.judge),...kv('Case no.',c.caseNo),...kv('FIR',c.fir),...kv('Police station',c.ps),...kv('Sections',c.sections),...kv('Opposite party',c.opp),...kv('Opposing counsel',c.oppCounsel),...kv('Associate counsel',c.assocCounsel),...kv('Filed',c.filed?fd(c.filed):''),...kv('Next hearing',c.nextDate?fd(c.nextDate):''),...kv('Stage',c.stage),...(par?kv(c.linkType||'Linked to',ctitle(par)):[]),...kids.map(x=>[x.linkType||'Linked',ctitle(x)]),...kv('Notes',c.notes)]);
+    sec('Parties',(c.parties||[]).map(p=>[p.role,p.name]));
+    sec('Hearing history and orders',(c.hearings||[]).slice().sort((p,q)=>(p.d||'')<(q.d||'')?-1:1).map(x=>[fd(x.d),(x.note||'—')+(x.order?'\nOrder: '+x.order:''),x.next?fd(x.next):'']),['Date','Proceedings / order','Next date']);
+    sec('Documents index',(c.docs||[]).map((d,i)=>[i+1,d.name||'Document',fd(d.d),d.by||'']),['#','Document','Added','By']);
+    const na=naOpen(c),pend=[...(na?[['Next action',na.text+' ('+(na.who||'')+(na.d?', '+fd(na.d):'')+')']]:[]),...(c.deadlines||[]).filter(x=>!x.done).map(x=>[x.label||'Filing',fd(x.d)]),...otasks().filter(x=>x.cid===cid&&!x.done).map(x=>[x.type+(x.text?' — '+x.text:''),(x.who||'')+(x.d?', '+fd(x.d):'')])];
+    sec('Pending tasks and deadlines',pend);
+    if(isAdmin&&(fz.fee||(fz.payments||[]).length)){const rows=[['Agreed fee','',rs(fz.fee)],...live(fz.expenses).filter(e=>e.bill!==false).map(e=>[fd(e.d),'Expense'+(e.note?': '+e.note:''),rs(e.amt)]),...live(fz.adjust).map(x=>[fd(x.d),(x.kind==='woff'?'Write-off':'Discount'),'- '+rs(x.amt)]),...live(fz.payments).map(p=>[fd(p.d),'Received '+(p.rno||''),'- '+rs(p.amt)]),[ '',credit(cid)?'Advance (credit)':'Balance',rs(credit(cid)||bal(cid))]];sec('Fee statement',rows,['Date','Details','Amount'])}
+    const pc=doc.getNumberOfPages();for(let i=1;i<=pc;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(90,90,90);doc.text(FIRM.contact+'  ·  Page '+i+' of '+pc,W/2,290,{align:'center'})}
+    await shareOrSave('Case-file-'+ctitle(c).replace(/[^\w]+/g,'-').slice(0,60)+'.pdf',doc.output('blob'),{share:true})}
+  catch(x){toast('Could not make the PDF')}}
 E($('#logForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),cl=clients.find(x=>x.id===curClient);if(!cl)return;
   const d=strip(cl);d.log=[...(d.log||[]).map(x=>x.fu&&!x.fuDone?{...x,fuDone:true}:x),{d:TODAY,at:new Date().toISOString(),type:f.type.value,note:f.note.value.trim(),fu:f.fu.value}];
   if(await put('clients',cl.id,d)){$('#logDlg').close();toast(t('saved'));clientCases(cl.id)}});
@@ -663,6 +724,18 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'appt':case 'apptEdit':{const x=a==='apptEdit'?appts().find(z=>z.id===id):null;const f=E($('#apptForm'));f.reset();f.dataset.id=x?x.id:'';f.kind.value=x?x.kind:'Appointment';f.title.value=x?x.title:'';f.d.value=x?x.d:(view==='calendar'?calDay:TODAY);f.time.value=x?x.time||'':'';f.who.value=x&&x.cid?cli(x.cid).name||'':'';f.note.value=x?x.note||'':'';$('#apptDel').style.display=x?'':'none';addMics();$('#apptDlg').showModal();break}
   case 'apptDone':{const before=clone(appts());settings.appts=appts().map(z=>z.id===id?{...z,done:true}:z);await persist();render();undoable(t('done'),async()=>{settings.appts=before;await persist();render()});break}
   case 'apptDel':{const fid=E($('#apptForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.appts=appts().filter(z=>z.id!==fid);await persist();$('#apptDlg').close();render();toast(t('deleted'));break}
+  case 'otEdit':{const x=id?otasks().find(z=>z.id===id):null;const f=E($('#otForm'));f.reset();f.dataset.id=x?x.id:'';
+    f.cid.innerHTML='<option value=""></option>'+cases.filter(c=>c.status==='Active').sort((p,q)=>ctitle(p).localeCompare(ctitle(q))).map(c=>`<option value="${esc(c.id)}">${esc(ctitle(c))}${cname(c)?' · '+esc(cname(c)):''}</option>`).join('');
+    f.type.innerHTML=OTYPES.map(o=>`<option>${esc(o)}</option>`).join('');
+    f.type.value=x?x.type||'Other':'Certified copy';f.text.value=x?x.text||'':'';f.who.value=x?x.who||'Advocate':'Munshi';f.d.value=x?x.d||'':addDays(TODAY,1);f.cid.value=x?x.cid||'':(el.dataset.cid||'');
+    $('#otDel').style.display=x?'':'none';fillPicks($('#otDlg'));addMics();$('#otDlg').showModal();break}
+  case 'otDone':{const before=clone(otasks());settings.tasks=otasks().map(z=>z.id===id?{...z,done:true,doneOn:TODAY}:z);const x=otasks().find(z=>z.id===id);if(x&&x.cid)audit('cases',x.cid,'Task done: '+(x.type||'')+' '+(x.text||''));await persist();render();undoable(t('done'),async()=>{settings.tasks=before;await persist();render()});break}
+  case 'otDel':{const fid=E($('#otForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.tasks=otasks().filter(z=>z.id!==fid);await persist();$('#otDlg').close();render();toast(t('deleted'));break}
+  case 'courtEdit':{const z=id?courtsDir().find(x=>x.id===id):null;const f=E($('#courtForm'));f.reset();f.dataset.id=z?z.id:'';f.cat.innerHTML='<option value=""></option>'+COURT_TYPES.map(o=>`<option>${esc(o)}</option>`).join('');
+    for(const k of ['name','cat','city','judge','room','note'])f[k].value=z?z[k]||'':'';if(!z)f.city.value='Bahawalpur';$('#courtDel').style.display=z?'':'none';$('#courtDlg').showModal();break}
+  case 'courtDel':{const fid=E($('#courtForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.courts=courtsDir().filter(z=>z.id!==fid);await persist();$('#courtDlg').close();render();break}
+  case 'courtImport':{const have=new Set(courtsDir().map(z=>z.name));const add=[...new Set(cases.map(c=>c.court).filter(Boolean))].filter(c=>!have.has(c)).map(c=>{const j=cases.find(x=>x.court===c&&x.judge);const p=c.split(',');return{id:'k'+newId(),name:c,cat:COURT_TYPES.includes(p[0].trim())?p[0].trim():'',city:(p[1]||'').trim(),judge:j?j.judge:'',room:'',note:''}});settings.courts=[...courtsDir(),...add];await persist();render();toast(t('saved')+' · '+add.length);break}
+  case 'caseFile':caseFile(id);break;
   case 'addPt':$('#ptRows').insertAdjacentHTML('beforeend',ptRow({role:'Respondent'}));break;
   case 'rmPt':el.closest('.ptrow').remove();break;
   case 'naEdit':{CFMORE=true;openCase(byId(id));setTimeout(()=>{const n=E($('#caseForm')).naText;if(n){try{n.scrollIntoView({block:'center'})}catch(x){}n.focus()}},60);break}
@@ -697,7 +770,7 @@ async function addFile(file){if(!file||!S.key||!curId)return;
     const type=blob.type||file.type||'application/octet-stream',bytes=new Uint8Array(await blob.arrayBuffer()),id='f'+newId();let local=false;
     if(CLOUD){const p=pk(await enc(C.ok,bytes));if(p.length<950000)C.fs.collection('files').doc(id).set({p,type,u:Date.now()}).catch(e=>toast(cErr(e)));else{const o=await enc(C.ok,bytes);o.type=type;await idbPut('files',id,o);local=true}}
     else{const o=await enc(S.key,bytes);o.type=type;await idbPut('files',id,o)}
-    const c=byId(curId),d=strip(c);d.docs=[...(d.docs||[]),{id,name,d:TODAY,size:bytes.length,...(local?{local:1}:{})}];if(await put('cases',curId,d))toast(local&&CLOUD?t('onlyDevice'):t('saved'))}
+    const c=byId(curId),d=strip(c);d.docs=[...(d.docs||[]),{id,name,d:TODAY,size:bytes.length,by:who_(),...(local?{local:1}:{})}];if(await put('cases',curId,d))toast(local&&CLOUD?t('onlyDevice'):t('saved'))}
   catch(x){toast('Could not store file — storage may be full')}}
 $('#fileIn').addEventListener('change',e=>addFile(e.target.files[0]));
 $('#camIn').addEventListener('change',e=>addFile(e.target.files[0]));
@@ -708,7 +781,7 @@ async function viewDoc(i){const c=byId(curId);const doc=c&&(c.docs||[])[i];if(!d
   try{const f=await fileBytes(doc);if(!f){toast(t('fileMissing'));return}const blob=new Blob([f.bytes],{type:f.type});openBlob(blob,doc.name)}catch(x){toast(CLOUD?t('needOnline'):'Could not open file')}}
 function openBlob(blob,name){ext();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';if(!/^image\/|pdf/.test(blob.type))a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},120000)}
 document.addEventListener('input',e=>{const id=e.target.id;if(id==='q'||id==='cq'||id==='gq'){ui[id]=e.target.value;const p=e.target.selectionStart;render();const n=$('#'+id);n.focus();try{n.setSelectionRange(p,p)}catch(x){}}});
-document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.f==='task'){const o=e.target.parentElement.querySelector('[data-f=label]');o.style.display=e.target.value==='Other'?'':'none'}if(e.target.id==='f'){ui.f=e.target.value;render()}if(e.target.id==='cf'){ui.cf=e.target.value;render()}if(e.target.id==='causeD')ui.cause=e.target.value});
+document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.f==='task'){const o=e.target.parentElement.querySelector('[data-f=label]');o.style.display=e.target.value==='Other'?'':'none'}if(e.target.id==='f'){ui.f=e.target.value;render()}if(e.target.id==='cf'){ui.cf=e.target.value;render()}if(e.target.name==='court'&&e.target.closest('#caseForm')){const z=courtsDir().find(x=>x.name===e.target.value.trim()),f=E($('#caseForm'));if(z&&z.judge&&!f.judge.value)f.judge.value=z.judge}if(e.target.id==='causeD')ui.cause=e.target.value});
 
 /* ---------- backup / restore ---------- */
 const pack=o=>({iv:b64(o.iv),ct:b64(o.ct),...(o.type?{type:o.type}:{})}),unpack=o=>({iv:unb64(o.iv),ct:unb64(o.ct),...(o.type?{type:o.type}:{})});
@@ -746,7 +819,7 @@ async function doRestore(file,pass,pre){
     await put('cases',id,r);n++}
   if(C.fk)for(const [id,f] of Object.entries(d.fees||{}))await put('fees',id,f);
   toast(t('restored')+' · '+n)}
-function load_(d){clients=d.clients||[];cases=d.cases||[];fees=d.fees||{};settings=d.settings||{};arc={cases:[],clients:[]};moveArc()}
+function load_(d){clients=d.clients||[];cases=d.cases||[];fees=d.fees||{};settings=d.settings||{};AUD=d.audit||[];arc={cases:[],clients:[]};moveArc()}
 
 /* ---------- Excel import ---------- */
 const ALIAS={client:['client','client name','name','party','موکل'],phone:['phone','mobile','contact','cell','whatsapp','فون'],cnic:['cnic','id card'],email:['email','e-mail'],title:['case','case title','title','case name','عنوان'],caseNo:['case no','case no.','case number','caseno','suit no'],opp:['opposite party','respondent','defendant','vs','versus'],fir:['fir','fir no','fir no.'],ps:['police station','ps','thana'],sections:['sections','section','offence','u/s'],court:['court','عدالت'],judge:['judge'],type:['type','category','nature','case type'],status:['status'],filed:['filed','filing date','institution date','instituted'],nextDate:['next date','next hearing','hearing date','date','next','تاریخ'],stage:['stage','for','purpose','proceedings'],fee:['agreed fee','fee','total fee','fees'],received:['received','paid','fee received','advance'],notes:['notes','remarks','note']};
@@ -826,6 +899,7 @@ function vSettings(){
   h+=`<div class="panel"><h3>${esc(t('importExcel'))}</h3><p class="meta">${esc(t('importHelp'))}</p>`+(IMPORT?`<div class="note">${esc(t('importFound'))}: <b>${IMPORT.length}</b> — ${IMPORT.slice(0,3).map(r=>esc(r.title||r.client)).join(', ')}${IMPORT.length>3?'…':''}</div><div class="acts"><button class="pri" type="button" data-a="runImport">${esc(t('importNow'))}</button><button type="button" class="ghost" data-a="cancelImport">${esc(t('cancel'))}</button></div>`:`<div class="acts"><button type="button" data-a="pickExcel">${esc(t('importExcel'))}</button><button type="button" class="ghost" data-a="xlTemplate">${esc(t('template'))}</button></div>`)+`</div>`;
   h+=`<div class="panel"><h3>${esc(t('backup'))}</h3><p class="meta">${esc(t('backupHelp'))}</p><p>${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <span class="meta">${esc(t('backupMail'))}: ${esc(settings.backupMail||BKMAIL)}</span></p>
   <div class="acts"><button class="pri" type="button" data-a="encBackup">${esc(t('backupNow'))}</button><button type="button" data-a="restoreStart">${esc(CLOUD?t('importBackup'):t('restore'))}</button><button type="button" data-a="backup">${esc(t('exportExcel'))}</button></div></div>
+  ${isAdmin?`<div class="panel"><h3>${esc(t('courtDir'))}</h3><p class="meta">${esc(t('courtDirHelp'))}</p><div class="hist">${courtsDir().slice().sort((x,y)=>x.name.localeCompare(y.name)).map(z=>`<div><b>${esc(z.name)}</b> <span class="meta">${[z.judge,z.room?t('room')+' '+z.room:'',z.note].filter(Boolean).map(esc).join(' · ')} · ${cases.filter(c=>c.court===z.name&&c.status==='Active').length} ${esc(t('cases_n'))}</span><span class="sp"></span><button class="sm ghost" type="button" data-a="courtEdit" data-id="${esc(z.id)}">${esc(t('edit'))}</button></div>`).join('')||`<div class="meta">${esc(t('courtNone'))}</div>`}</div><div class="acts"><button class="sm" type="button" data-a="courtEdit">${esc(t('courtAdd'))}</button>${[...new Set(cases.map(c=>c.court).filter(Boolean))].filter(c=>!courtsDir().some(z=>z.name===c)).length?`<button class="sm ghost" type="button" data-a="courtImport">${esc(t('courtImport'))}</button>`:''}</div></div>`:''}
   ${vArchive()}
   <div class="panel"><h3>${esc(t('device'))}</h3><p class="meta">${esc(CLOUD?t('cloudOn'):t('localOnly'))}</p><p class="meta" id="storeInfo"></p><p class="meta">${esc(t('installHint'))}</p></div>
   <div class="panel"><h3 class="danger">${esc(CLOUD?t('removeDevice'):t('erase'))}</h3><p class="meta">${esc(CLOUD?t('removeDeviceHelp'):t('eraseHelp'))}</p><button type="button" class="ghost danger" data-a="eraseStart">${esc(CLOUD?t('removeDevice'):t('erase'))}</button></div>`;
@@ -945,7 +1019,7 @@ async function eraseReq(){return (await idbGet('kv','eraseReq').catch(()=>null))
 async function forgotBox(){const r=await eraseReq(),now=Date.now(),ready=r&&now-r>=864e5;
   $('#erInfo').textContent=!r?t('erNone'):ready?t('erReady'):t('erWait')+' '+new Date(r+864e5).toLocaleString();
   $('#erActs').innerHTML=`<button type="button" data-a="erCopy">${esc(t('erSaveCopy'))}</button>`+(!r?`<button type="button" class="ghost danger" data-a="erReq">${esc(t('erRequest'))}</button>`:ready?`<button type="button" class="danger" data-a="eraseStart">${esc(t('erNow'))}</button><button type="button" class="ghost" data-a="erCancel">${esc(t('erCancel'))}</button>`:`<button type="button" class="ghost" data-a="erCancel">${esc(t('erCancel'))}</button>`)}
-function lock(){LOCKING=true;S.key=null;S.pw='';UNDO=null;try{$('#undoBar').hidden=true}catch(x){}DRAFT=null;arc={cases:[],clients:[]};if(CLOUD){cUnsub();C.ok=C.fk=null;C.oraw=C.fraw='';C.cache.clear()}clients=[];cases=[];fees={};curId=null;curClient=null;$$('dialog').forEach(d=>{if(d.open)d.close()});$('#view').innerHTML='';clearTimeout(idleT);setTimeout(()=>{LOCKING=false},400);showLock()}
+function lock(){LOCKING=true;AUD=[];S.key=null;S.pw='';UNDO=null;try{$('#undoBar').hidden=true}catch(x){}DRAFT=null;arc={cases:[],clients:[]};if(CLOUD){cUnsub();C.ok=C.fk=null;C.oraw=C.fraw='';C.cache.clear()}clients=[];cases=[];fees={};curId=null;curClient=null;$$('dialog').forEach(d=>{if(d.open)d.close()});$('#view').innerHTML='';clearTimeout(idleT);setTimeout(()=>{LOCKING=false},400);showLock()}
 async function showLock(){
   const f=E($('#lockForm'));f.reset();const err=$('#lkErr');err.textContent='';let mode;
   if(!CLOUD){const meta=await idbGet('kv','meta').catch(()=>null);S.meta=meta||null;mode=meta?'unlock':'setup'}
