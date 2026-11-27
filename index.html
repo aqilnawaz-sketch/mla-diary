@@ -223,6 +223,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   <div class="dh"><h3 id="mTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db">
     <div class="meta" id="mCase"></div>
+    <div class="pick" id="mKinds"></div>
     <div class="g2"><label><span data-t="amount"></span><input type="number" name="amt" min="0" inputmode="numeric"></label><label><span data-t="date"></span><input type="date" name="d"></label></div>
     <label id="mModeL"><span data-t="mode"></span><select name="mode"><option>Cash</option><option>Bank transfer</option><option>JazzCash</option><option>Easypaisa</option><option>Cheque</option></select></label>
     <label id="mRemL"><span data-t="remindClient"></span><input name="rem" type="number" min="0" max="30" value="2" inputmode="numeric"><div class="pick" data-pick="rem"></div></label>
@@ -232,6 +233,11 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   </div>
 </form></dialog>
 
+<dialog id="voidDlg"><form id="voidForm" autocomplete="off">
+  <div class="dh"><h3 data-t="voidBtn"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><p id="voidInfo"></p><p class="meta" data-t="voidHelp"></p><label><span data-t="reason"></span><input name="why" data-voice></label>
+    <div class="acts"><button class="pri" type="submit" data-t="voidBtn"></button><button type="button" class="ghost" data-a="close" data-t="back"></button></div></div>
+</form></dialog>
 <dialog id="restoreDlg"><form id="restoreForm">
   <div class="dh"><h3 data-t="restore"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><p class="note" id="rsWarn"></p>
@@ -270,8 +276,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <input type="file" id="xlIn" accept=".xlsx,.xls,.csv" hidden>
 <datalist id="courts"></datalist><datalist id="clientList"></datalist>
 <div class="toast" id="toast" role="status"></div>
-<script src="config.js?v=13"></script>
-<script src="i18n.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="config.js?v=14"></script>
+<script src="i18n.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

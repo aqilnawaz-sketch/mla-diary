@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v13';const IT=600000;
+let TODAY=iso(new Date());const APPV='v14';const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -55,10 +55,16 @@ let view='diary',curId=null,curClient=null,calM=TODAY.slice(0,7),calDay=TODAY,mo
 const ui={q:'',f:'Active',cq:'',cause:addDays(TODAY,1)};
 
 const F=id=>fees[id]||{};
-const paid=id=>(F(id).payments||[]).reduce((a,p)=>a+(+p.amt||0),0);
-const expB=id=>(F(id).expenses||[]).filter(e=>e.bill!==false).reduce((a,e)=>a+(+e.amt||0),0);
-const owed=id=>(+F(id).fee||0)+expB(id);
+const live=a=>(a||[]).filter(x=>!x.void);
+const sumA=a=>live(a).reduce((s,x)=>s+(+x.amt||0),0);
+const fzOwed=z=>(+z.fee||0)+sumA((z.expenses||[]).filter(e=>e.bill!==false))-sumA(z.adjust);
+const fzPaid=z=>sumA(z.payments);
+const paid=id=>fzPaid(F(id));
+const expB=id=>sumA((F(id).expenses||[]).filter(e=>e.bill!==false));
+const adjT=id=>sumA(F(id).adjust);
+const owed=id=>fzOwed(F(id));
 const bal=id=>Math.max(0,owed(id)-paid(id));
+const credit=id=>Math.max(0,paid(id)-owed(id));
 const cli=id=>clients.find(c=>c.id===id)||arc.clients.find(c=>c.id===id)||{};
 const cname=c=>cli(c.clientId).name||'';
 const cphone=c=>cli(c.clientId).phone||'';
@@ -161,8 +167,10 @@ async function backup(){
     add('Clients',clients.map(c=>({Name:c.name||'',Phone:c.phone||'',CNIC:c.cnic||'',Address:c.address||'','Referred by':c.ref||'',Notes:c.notes||'',Cases:cases.filter(x=>x.clientId===c.id).length})));
     add('Hearings',cases.flatMap(c=>(c.hearings||[]).map(h=>({Case:ctitle(c),Client:cname(c),Date:h.d,Proceedings:h.note||'','Next date':h.next||''}))));
     add('Deadlines',cases.flatMap(c=>(c.deadlines||[]).map(x=>({Case:ctitle(c),What:x.label||'',Due:x.d||'',Done:x.done?'Yes':''}))));
-    if(isAdmin){add('Payments',cases.flatMap(c=>(F(c.id).payments||[]).map(p=>({Receipt:p.rno||'',Date:p.d,Client:cname(c),Case:ctitle(c),Amount:+p.amt||0,Mode:p.mode||'',Note:p.note||''}))));
-      add('Expenses',cases.flatMap(c=>(F(c.id).expenses||[]).map(p=>({Date:p.d,Case:ctitle(c),Amount:+p.amt||0,'Charge to client':p.bill===false?'No':'Yes',Note:p.note||''}))));
+    if(isAdmin){add('Payments',cases.flatMap(c=>(F(c.id).payments||[]).map(p=>({Receipt:p.rno||'',Date:p.d,Client:cname(c),Case:ctitle(c),Amount:+p.amt||0,Mode:p.mode||'',Note:p.note||'',Status:p.void?'Cancelled '+p.void.d+': '+(p.void.why||''):''}))));
+      add('Adjustments',cases.flatMap(c=>(F(c.id).adjust||[]).map(x=>({Date:x.d,Client:cname(c),Case:ctitle(c),Type:x.kind==='woff'?'Write-off':'Discount',Amount:+x.amt||0,Note:x.note||'',Status:x.void?'Cancelled '+x.void.d+': '+(x.void.why||''):''}))));
+      add('Fee changes',cases.flatMap(c=>(F(c.id).feeLog||[]).map(x=>({Date:x.d,Case:ctitle(c),From:x.from,To:x.to}))));
+      add('Expenses',cases.flatMap(c=>(F(c.id).expenses||[]).map(p=>({Date:p.d,Case:ctitle(c),Amount:+p.amt||0,'Charge to client':p.bill===false?'No':'Yes',Note:p.note||'',Status:p.void?'Cancelled '+p.void.d+': '+(p.void.why||''):''}))));
       add('Instalments',cases.flatMap(c=>(F(c.id).plan||[]).map(p=>({Case:ctitle(c),Client:cname(c),Due:p.d,Amount:+p.amt||0}))))}
     await saveFile('MLA-backup-'+TODAY+'.xlsx',new Blob([X.write(wb,{bookType:'xlsx',type:'array'})]));
   }catch(e){toast('Could not load the file maker — check connection')}
@@ -176,13 +184,16 @@ async function makeReceipt(cid,i){
     doc.setTextColor(150,118,40);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('FEE RECEIPT',W/2,39,{align:'center'});
     doc.setTextColor(20,20,20);doc.setFontSize(10);doc.setFont('helvetica','normal');
     doc.text('Receipt no: '+(p.rno||'—'),12,48);doc.text('Date: '+fd(p.d),W-12,48,{align:'right'});
-    const L=[['Received from',cname(c)||'—'],['Case',ctitle(c)],['Case no.',c.caseNo||'—'],['Court',c.court||'—'],['Amount',rs(p.amt)],['In words','Rupees '+words(p.amt)+' only'],['Mode',p.mode||'Cash'],['Remarks',p.note||'—'],['Total fee agreed',rs(owed(cid))],['Received to date',rs(paid(cid))],['Balance',rs(bal(cid))]];
+    const so=p.snap?p.snap.owed:owed(cid),sp=p.snap?p.snap.paid:paid(cid),sb=so-sp;
+    const L=[['Received from',cname(c)||'—'],['Case',ctitle(c)],['Case no.',c.caseNo||'—'],['Court',c.court||'—'],['Amount',rs(p.amt)],['In words','Rupees '+words(p.amt)+' only'],['Mode',p.mode||'Cash'],['Remarks',p.note||'—'],['Total fee agreed',rs(so)],['Received to date',rs(sp)],sb<0?['Advance (credit)',rs(-sb)]:['Balance',rs(sb)]];
+    if(p.void)L.unshift(['CANCELLED','On '+fd(p.void.d)+' — '+(p.void.why||'')]);
     if(F(cid).agreedOn)L.push(['Fee agreement','Dated '+fd(F(cid).agreedOn)]);
     doc.autoTable({body:L,startY:53,theme:'plain',styles:{fontSize:9.5,cellPadding:1.3},columnStyles:{0:{fontStyle:'bold',cellWidth:38}},margin:{left:12,right:12}});
     let ny=doc.lastAutoTable.finalY+3;doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('Note:',12,ny+3);doc.setFont('helvetica','normal');doc.setFontSize(7.4);RECEIPT_NOTE.forEach((x,i)=>{const T=doc.splitTextToSize((i+1)+'. '+x,W-30);doc.text(T,22,ny+3);ny+=T.length*3.3+0.6});
     const y=Math.max(ny+14,doc.lastAutoTable.finalY+20);doc.line(W-62,y,W-12,y);doc.setFontSize(9);doc.text('Signature',W-37,y+5,{align:'center'});
     doc.setFontSize(7.5);doc.setTextColor(90,90,90);doc.text(FIRM.contact,W/2,204,{align:'center'});
-    return{name:'Receipt-'+(p.rno||p.d)+'.pdf',blob:doc.output('blob'),c,p};
+    if(p.void){doc.setTextColor(200,40,40);doc.setFont('helvetica','bold');doc.setFontSize(46);doc.text('CANCELLED',W/2,130,{align:'center',angle:30});doc.setTextColor(20,20,20)}
+    return{name:'Receipt-'+(p.rno||p.d)+(p.void?'-CANCELLED':'')+'.pdf',blob:doc.output('blob'),c,p,bal:sb};
   }
 }
 const AGREE_CLAUSES=fee=>[
@@ -227,8 +238,8 @@ async function feeDoc(cid,kind){const c=byId(cid);if(!c)return;const cl=cli(c.cl
       if(cl.noread){doc.rect(84,y-22,32,26)}doc.setFontSize(8.5);doc.text(cl.noread?'Client (signature)':'Client signature',44,y+5,{align:'center'});if(cl.noread)doc.text('Thumb impression',100,y+8,{align:'center'});doc.text('Advocate',W-44,y+5,{align:'center'});
       y+=18;doc.line(14,y,74,y);doc.line(W-74,y,W-14,y);doc.text('Witness 1 (name, CNIC)',44,y+5,{align:'center'});doc.text('Witness 2 (name, CNIC)',W-44,y+5,{align:'center'});
       if(!fz.agreedOn&&isAdmin)put('fees',cid,{...strip(fz),agreedOn:TODAY})}
-    else{const rows=[['Agreed fee','',rs(fz.fee)],...(fz.expenses||[]).filter(e=>e.bill!==false).map(e=>[fd(e.d),'Expense'+(e.note?': '+e.note:''),rs(e.amt)]),...(fz.payments||[]).slice().sort((a,b)=>a.d<b.d?-1:1).map(p=>[fd(p.d),'Payment received '+(p.rno||'')+(p.mode?' ('+p.mode+')':''),'- '+rs(p.amt)])];
-      doc.autoTable({head:[['Date','Details','Amount']],body:rows,foot:[['','Balance due',rs(bal(cid))]],startY:y,styles:{fontSize:9.5},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},footStyles:{fillColor:[245,223,160],textColor:[20,20,20],fontStyle:'bold'},columnStyles:{2:{halign:'right'}},margin:{left:14,right:14}});
+    else{const rows=[['Agreed fee','',rs(fz.fee)],...live(fz.expenses).filter(e=>e.bill!==false).map(e=>[fd(e.d),'Expense'+(e.note?': '+e.note:''),rs(e.amt)]),...live(fz.adjust).map(x=>[fd(x.d),(x.kind==='woff'?'Write-off':'Discount')+(x.note?': '+x.note:''),'- '+rs(x.amt)]),...live(fz.payments).slice().sort((a,b)=>a.d<b.d?-1:1).map(p=>[fd(p.d),'Payment received '+(p.rno||'')+(p.mode?' ('+p.mode+')':''),'- '+rs(p.amt)])];
+      doc.autoTable({head:[['Date','Details','Amount']],body:rows,foot:[['',credit(cid)?'Advance (credit)':'Balance due',rs(credit(cid)||bal(cid))]],startY:y,styles:{fontSize:9.5},headStyles:{fillColor:[12,12,14],textColor:[228,196,110]},footStyles:{fillColor:[245,223,160],textColor:[20,20,20],fontStyle:'bold'},columnStyles:{2:{halign:'right'}},margin:{left:14,right:14}});
       const ni=nextInst(cid);if(ni){doc.setFontSize(10);doc.text('Next payment due: '+rs(ni.due)+' on '+fd(ni.d),14,doc.lastAutoTable.finalY+8)}}
     doc.setFontSize(7.5);doc.setTextColor(90,90,90);doc.text(FIRM.contact,W/2,290,{align:'center'});
     const name=(kind==='agree'?'Fee-agreement-':'Fee-statement-')+(cl.name||'client').replace(/[^\w]+/g,'-')+'.pdf';
@@ -238,7 +249,7 @@ async function feeDoc(cid,kind){const c=byId(cid);if(!c)return;const cl=cli(c.cl
 async function receipt(cid,i,how){
   try{const r=await makeReceipt(cid,i);if(!r)return;
     if(how==='print'){openBlob(r.blob,r.name);return}
-    const msg=`Assalam-o-Alaikum ${cname(r.c)}, received with thanks ${rs(r.p.amt)} on ${fd(r.p.d)} for "${ctitle(r.c)}". Receipt ${r.p.rno||''} attached. Balance: ${rs(bal(cid))}. — ${FIRM.name}, 0333-3621111`;
+    const msg=`Assalam-o-Alaikum ${cname(r.c)}, received with thanks ${rs(r.p.amt)} on ${fd(r.p.d)} for "${ctitle(r.c)}". Receipt ${r.p.rno||''} attached. ${r.bal<0?'Advance: '+rs(-r.bal):'Balance: '+rs(r.bal)}. — ${FIRM.name}, 0333-3621111`;
     if(how==='wa')await shareOrSave(r.name,r.blob,{share:true,text:msg,wa:waLink(cphone(r.c),msg)});
     else if(how==='email'){const cl=cli(r.c.clientId);await shareOrSave(r.name,r.blob,{share:true,text:msg});if(!mobile()&&cl.email)window.open('mailto:'+encodeURIComponent(cl.email)+'?subject='+encodeURIComponent('Fee receipt '+(r.p.rno||''))+'&body='+encodeURIComponent(msg+'\n\n(PDF receipt attached)'),'_blank')}
     else await shareOrSave(r.name,r.blob)}
@@ -313,12 +324,12 @@ function vClients(){
     return `<div class="row"><div class="main" data-a="openClient" data-id="${esc(c.id)}"><h3>${esc(c.name||t('untitledClient'))}</h3><div class="meta">${esc(c.phone||'')}${c.phone&&cs.length?' · ':''}${cs.length?cs.length+' '+esc(t('cases_n')):''}</div>
     <div class="tags">${types.map(ty=>`<span class="tag">${esc(ty)}</span>`).join('')}${nx?`<span class="tag">${esc(t('nextHearing'))}: ${fd(nx)}</span>`:''}${isAdmin&&b?`<span class="tag due">${esc(t('remaining'))} ${rs(b)}</span>`:''}</div></div></div>`}).join('')}</div>`;
 }
-function allPays(){return cases.flatMap(c=>(F(c.id).payments||[]).map((p,i)=>({...p,c,i})))}
+function allPays(){return cases.flatMap(c=>(F(c.id).payments||[]).map((p,i)=>({...p,c,i})).filter(p=>!p.void))}
 function vFee(){
   if(!isAdmin)return `<div class="empty">${esc(t('staffNote'))}</div>`;
   const m=TODAY.slice(0,7),pays=allPays();
   const recM=pays.filter(p=>(p.d||'').startsWith(m)).reduce((a,p)=>a+(+p.amt||0),0),recA=pays.reduce((a,p)=>a+(+p.amt||0),0);
-  const expM=cases.flatMap(c=>F(c.id).expenses||[]).filter(e=>(e.d||'').startsWith(m)).reduce((a,e)=>a+(+e.amt||0),0);
+  const expM=cases.flatMap(c=>live(F(c.id).expenses)).filter(e=>(e.d||'').startsWith(m)).reduce((a,e)=>a+(+e.amt||0),0);
   const due=cases.reduce((a,c)=>a+bal(c.id),0);
   const od=cases.filter(c=>bal(c.id)>0).flatMap(c=>{let cum=0;const pd=paid(c.id);return (F(c.id).plan||[]).slice().sort((a,b)=>a.d<b.d?-1:1).filter(p=>{cum+=+p.amt||0;return p.d<=TODAY&&cum>pd}).map(p=>({c,p}))});
   const agreedAll=cases.reduce((a,c)=>a+owed(c.id),0);
@@ -380,12 +391,16 @@ function detail(id){
   <div class="sum">${kv('filed',c.filed?fd(c.filed):'')}<span>${esc(t('nextDate'))} <b>${fd(c.nextDate)}</b></span>${kv('stage',c.stage)}</div>
   ${c.notes?`<div class="meta">${esc(c.notes)}</div>`:''}
   <div class="acts"><button class="sm pri" type="button" data-a="hear" data-id="${esc(id)}">${esc(t('update'))}</button><button class="sm" type="button" data-a="editCase" data-id="${esc(id)}">${esc(t('edit'))}</button><button class="sm" type="button" data-a="scan">${esc(t('scan'))}</button><button class="sm" type="button" data-a="upload">${esc(t('upload'))}</button>${w?`<a class="btn sm ghost" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('waRem'))}</a>`:''}${c.clientId?`<button class="sm ghost" type="button" data-a="openClient" data-id="${esc(c.clientId)}">${esc(t('client'))}</button>`:''}</div>`;
-  if(isAdmin){const pays=(fz.payments||[]).map((p,i)=>({...p,i})).sort((a,b)=>(b.d||'').localeCompare(a.d||''));
-    h+=`<div class="panel" style="margin:0"><div class="sum"><span>${esc(t('agreed'))} <b>${rs(fz.fee)}</b></span><span>${esc(t('expenses'))} <b>${rs(expB(id))}</b></span><span>${esc(t('received'))} <b>${rs(paid(id))}</b></span><span>${esc(t('balance'))} <b style="color:var(--tape)">${rs(bal(id))}</b></span></div>
-    <div class="acts" style="margin-top:8px"><button class="sm" type="button" data-a="pay" data-id="${esc(id)}">${esc(t('addFee'))}</button><button class="sm" type="button" data-a="exp" data-id="${esc(id)}">${esc(t('addExp'))}</button><button class="sm" type="button" data-a="inst" data-id="${esc(id)}">${esc(t('addInst'))}</button><button class="sm ghost" type="button" data-a="feeDoc" data-k="agree" data-id="${esc(id)}">${esc(t('feeAgreement'))}</button><button class="sm ghost" type="button" data-a="feeDoc" data-k="stmt" data-id="${esc(id)}">${esc(t('feeStatement'))}</button></div></div>
-    <h4>${esc(t('feeRec'))}</h4><div class="hist">${pays.length?pays.map(p=>`<div class="p"><b>${rs(p.amt)}</b> ${fd(p.d)} · ${esc(p.mode||'')}${p.note?' · '+esc(p.note):''}<span class="sp"></span><span class="meta">${esc(p.rno||'')}</span><button class="sm" type="button" data-a="receipt" data-how="wa" data-id="${esc(id)}" data-i="${p.i}">${esc(t('waPdf'))}</button><button class="sm ghost" type="button" data-a="receipt" data-how="print" data-id="${esc(id)}" data-i="${p.i}">${esc(t('print'))}</button><button class="sm ghost" type="button" data-a="receipt" data-how="email" data-id="${esc(id)}" data-i="${p.i}">${esc(t('emailBtn'))}</button><button class="sm ghost danger" type="button" data-a="rmItem" data-k="payments" data-i="${p.i}">${esc(t('del'))}</button></div>`).join(''):`<div class="meta">${esc(t('noPay'))}</div>`}</div>
-    <h4>${esc(t('expenses'))}</h4><div class="hist">${(fz.expenses||[]).length?(fz.expenses||[]).map((e,i)=>`<div><b>${rs(e.amt)}</b> ${fd(e.d)}${e.note?' · '+esc(e.note):''}${e.bill===false?'':' · '+esc(t('billable'))}<span class="sp"></span><button class="sm ghost danger" type="button" data-a="rmItem" data-k="expenses" data-i="${i}">${esc(t('del'))}</button></div>`).join(''):`<div class="meta">${esc(t('noExp'))}</div>`}</div>
-    <h4>${esc(t('instalments'))}</h4><div class="hist">${(fz.plan||[]).length?(()=>{let cum=0;const pd=paid(id);return (fz.plan||[]).map((p,i)=>({...p,i})).sort((a,b)=>a.d<b.d?-1:1).map(p=>{cum+=+p.amt||0;const ok=cum<=pd;return `<div class="${ok?'p':p.d<=TODAY?'x':''}"><b>${rs(p.amt)}</b> ${fd(p.d)}${ok?' ✓':''}<span class="sp"></span><button class="sm ghost danger" type="button" data-a="rmItem" data-k="plan" data-i="${p.i}">${esc(t('del'))}</button></div>`}).join('')})():`<div class="meta">${esc(t('noInst'))}</div>`}</div>`}
+  if(isAdmin){const pays=(fz.payments||[]).map((p,i)=>({...p,i})).sort((a,b)=>(b.d||'').localeCompare(a.d||''));const cr=credit(id),ad=adjT(id);
+    const vb=(k,i)=>`<button class="sm ghost danger" type="button" data-a="voidItem" data-k="${k}" data-i="${i}">${esc(t('voidBtn'))}</button>`;
+    const vt=x=>`<span class="danger"> · ${esc(t('cancelledOn'))} ${fd(x.void.d)}: ${esc(x.void.why||'')}</span>`;
+    h+=`<div class="panel" style="margin:0"><div class="sum"><span>${esc(t('agreed'))} <b>${rs(fz.fee)}</b></span><span>${esc(t('expenses'))} <b>${rs(expB(id))}</b></span>${ad?`<span>${esc(t('adjustments'))} <b>- ${rs(ad)}</b></span>`:''}<span>${esc(t('received'))} <b>${rs(paid(id))}</b></span>${cr?`<span>${esc(t('creditBal'))} <b style="color:#7bc47f">${rs(cr)}</b></span>`:`<span>${esc(t('balance'))} <b style="color:var(--tape)">${rs(bal(id))}</b></span>`}</div>
+    <div class="acts" style="margin-top:8px"><button class="sm pri" type="button" data-a="txn" data-id="${esc(id)}">${esc(t('addTxn'))}</button><button class="sm ghost" type="button" data-a="feeDoc" data-k="agree" data-id="${esc(id)}">${esc(t('feeAgreement'))}</button><button class="sm ghost" type="button" data-a="feeDoc" data-k="stmt" data-id="${esc(id)}">${esc(t('feeStatement'))}</button></div></div>
+    <h4>${esc(t('feeRec'))}</h4><div class="hist">${pays.length?pays.map(p=>`<div class="${p.void?'':'p'}">${p.void?'<s>':''}<b>${rs(p.amt)}</b> ${fd(p.d)} · ${esc(p.mode||'')}${p.note?' · '+esc(p.note):''}${p.void?'</s>'+vt(p):''}<span class="sp"></span><span class="meta">${esc(p.rno||'')}</span>${p.void?'':`<button class="sm" type="button" data-a="receipt" data-how="wa" data-id="${esc(id)}" data-i="${p.i}">${esc(t('waPdf'))}</button>`}<button class="sm ghost" type="button" data-a="receipt" data-how="print" data-id="${esc(id)}" data-i="${p.i}">${esc(t('print'))}</button>${p.void?'':`<button class="sm ghost" type="button" data-a="receipt" data-how="email" data-id="${esc(id)}" data-i="${p.i}">${esc(t('emailBtn'))}</button>`+vb('payments',p.i)}</div>`).join(''):`<div class="meta">${esc(t('noPay'))}</div>`}</div>
+    <h4>${esc(t('expenses'))}</h4><div class="hist">${(fz.expenses||[]).length?(fz.expenses||[]).map((e,i)=>`<div>${e.void?'<s>':''}<b>${rs(e.amt)}</b> ${fd(e.d)}${e.note?' · '+esc(e.note):''}${e.bill===false?'':' · '+esc(t('billable'))}${e.void?'</s>'+vt(e):''}<span class="sp"></span>${e.void?'':vb('expenses',i)}</div>`).join(''):`<div class="meta">${esc(t('noExp'))}</div>`}</div>
+    ${(fz.adjust||[]).length?`<h4>${esc(t('adjustments'))}</h4><div class="hist">${(fz.adjust||[]).map((x,i)=>`<div>${x.void?'<s>':''}<b>- ${rs(x.amt)}</b> ${fd(x.d)} · ${esc(t(x.kind==='woff'?'txnWoff':'txnDisc'))}${x.note?' · '+esc(x.note):''}${x.void?'</s>'+vt(x):''}<span class="sp"></span>${x.void?'':vb('adjust',i)}</div>`).join('')}</div>`:''}
+    <h4>${esc(t('instalments'))}</h4><div class="hist">${(fz.plan||[]).length?(()=>{let cum=0;const pd=paid(id);return (fz.plan||[]).map((p,i)=>({...p,i})).sort((a,b)=>a.d<b.d?-1:1).map(p=>{cum+=+p.amt||0;const ok=cum<=pd;return `<div class="${ok?'p':p.d<=TODAY?'x':''}"><b>${rs(p.amt)}</b> ${fd(p.d)}${ok?' ✓':''}<span class="sp"></span><button class="sm ghost danger" type="button" data-a="rmItem" data-k="plan" data-i="${p.i}">${esc(t('del'))}</button></div>`}).join('')})():`<div class="meta">${esc(t('noInst'))}</div>`}</div>
+    ${(fz.feeLog||[]).length?`<h4>${esc(t('feeChanges'))}</h4><div class="hist">${fz.feeLog.map(x=>`<div><b>${fd(x.d)}</b> ${rs(x.from)} → ${rs(x.to)}</div>`).join('')}</div>`:''}`}
   const dls=(c.deadlines||[]).map((x,i)=>({...x,i})).sort((a,b)=>(a.d||'').localeCompare(b.d||''));
   if(dls.length)h+=`<h4>${esc(t('deadlines'))}</h4><div class="hist">${dls.map(x=>`<div class="${x.done?'p':x.d<=TODAY?'x':''}"><b>${fd(x.d)}</b> ${esc(x.label||'')}${x.done?' ✓':''}<span class="sp"></span>${x.done?'':`<button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(id)}" data-i="${x.i}">${esc(t('done'))}</button>`}</div>`).join('')}</div>`;
   h+=`<h4>${esc(t('docs'))}</h4><div class="hist">${(c.docs||[]).length?(c.docs||[]).map((d,i)=>`<div><a href="#" data-a="viewDoc" data-i="${i}">${esc(d.name||'Document')}</a> <span class="meta">${fd(d.d)}</span><span class="sp"></span>${isAdmin?`<button class="sm ghost danger" type="button" data-a="delDoc" data-i="${i}">${esc(t('del'))}</button>`:''}</div>`).join(''):`<div class="meta">${esc(t('noDocs'))}</div>`}</div>`;
@@ -429,7 +444,7 @@ E($('#caseForm')).addEventListener('submit',async e=>{e.preventDefault();
   d.deadlines=$$('#dlRows .dlrow').map(r=>{const tk=r.querySelector('[data-f=task]').value,o=r.querySelector('[data-f=label]').value.trim();return{label:tk==='Other'?(o||'Other'):tk,d:r.querySelector('[data-f=d]').value,rem:+r.querySelector('[data-f=rem]').value||2,done:!!r.querySelector('[data-f=done]').value}}).filter(x=>x.d);
   d.clientId=await findOrMakeClient(f.client.value,f.phone.value);
   if(!(await put('cases',id,d)))return;
-  if(isAdmin){const fee=+f.fee.value||0,fz=strip(F(id));if(fee!==(+fz.fee||0)||!fees[id]&&fee)await put('fees',id,{...fz,fee})}
+  if(isAdmin){const fee=+f.fee.value||0,fz=strip(F(id));if(fee!==(+fz.fee||0)||!fees[id]&&fee){if(fees[id]&&fee!==(+fz.fee||0))fz.feeLog=[...(fz.feeLog||[]),{d:TODAY,from:+fz.fee||0,to:fee}];await put('fees',id,{...fz,fee})}}
   $('#caseDlg').close();toast(t('saved'));if($('#detDlg').open)detail(id);
 });
 E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curClient||newId('clients');
@@ -469,18 +484,27 @@ E($('#hearForm')).addEventListener('submit',async e=>{e.preventDefault();const f
   d.nextDate=f.next.value;if(f.stage.value.trim())d.stage=f.stage.value.trim();d.status=f.status.value;
   if(await put('cases',c.id,d)){$('#hearDlg').close();toast(f.next.value?t('nextDate')+': '+fd(f.next.value):t('saved'))}});
 
-function openMoney(kind,id){moneyKind=kind;curId=id;const c=byId(id),f=E($('#moneyForm'));f.reset();f.d.value=TODAY;f.bill.checked=true;
-  $('#mTitle').textContent=kind==='pay'?t('addFee').replace('+','').trim():kind==='exp'?t('addExp').replace('+','').trim():t('addInst').replace('+','').trim();
-  $('#mModeL').style.display=kind==='pay'?'':'none';$('#mBillL').style.display=kind==='exp'?'':'none';$('#mRemL').style.display=kind==='inst'?'':'none';fillPicks($('#moneyDlg'));
-  if(kind==='inst')f.d.value=addDays(TODAY,30);
-  $('#mCase').textContent=ctitle(c)+' · '+t('balance')+' '+rs(bal(id));addMics();$('#moneyDlg').showModal()}
+const KINDS=[['pay','txnPay'],['exp','txnExp'],['inst','txnInst'],['disc','txnDisc'],['woff','txnWoff']];
+function setKind(kind){moneyKind=kind;const f=E($('#moneyForm'));
+  $('#mKinds').innerHTML=KINDS.map(([k,l])=>`<button type="button" data-a="mkind" data-k="${k}" class="${k===kind?'on':''}">${esc(t(l))}</button>`).join('');
+  $('#mTitle').textContent=t('addTxn')+' · '+t(KINDS.find(x=>x[0]===kind)[1]);
+  $('#mModeL').style.display=kind==='pay'?'':'none';$('#mBillL').style.display=kind==='exp'?'':'none';$('#mRemL').style.display=kind==='inst'?'':'none';
+  f.d.value=kind==='inst'?addDays(TODAY,30):TODAY}
+function openMoney(kind,id){curId=id;const c=byId(id),f=E($('#moneyForm'));f.reset();f.bill.checked=true;setKind(kind);fillPicks($('#moneyDlg'));
+  $('#mCase').textContent=ctitle(c)+' · '+(credit(id)?t('creditBal')+' '+rs(credit(id)):t('balance')+' '+rs(bal(id)));addMics();$('#moneyDlg').showModal()}
 E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=+f.amt.value||0;if(!amt){f.amt.focus();return}
   const fz=strip(F(id));const item={d:f.d.value||TODAY,amt,note:f.note.value.trim()};let key='payments';
-  if(moneyKind==='pay'){item.mode=f.mode.value;const y=item.d.slice(0,4);const n=Object.values(fees).flatMap(z=>z.payments||[]).filter(p=>(p.rno||'').startsWith('MLA-'+y)).map(p=>+p.rno.split('-')[2]||0);item.rno='MLA-'+y+'-'+pad4(Math.max(0,...n)+1)}
-  else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else{key='plan';item.rem=Math.max(0,+f.rem.value||0)}
-  fz[key]=[...(fz[key]||[]),item];
+  if(moneyKind==='pay'){item.mode=f.mode.value;item.rno=nextRno(item.d.slice(0,4))}
+  else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else if(moneyKind==='disc'||moneyKind==='woff'){key='adjust';item.kind=moneyKind}else{key='plan';item.rem=Math.max(0,+f.rem.value||0)}
+  item.at=new Date().toISOString();fz[key]=[...(fz[key]||[]),item];
+  if(moneyKind==='pay')item.snap={owed:fzOwed(fz),paid:fzPaid(fz)};
   if(await put('fees',id,fz)){$('#moneyDlg').close();if(moneyKind==='pay'){const idx=fz.payments.length-1;$('#rcptInfo').textContent=rs(amt)+' · '+item.rno+' · '+cname(byId(id));$$('#rcptDlg [data-a=receipt]').forEach(b=>{b.dataset.id=id;b.dataset.i=idx});$('#rcptDlg').showModal()}else toast(t('saved'))}});
+let VOID=null;
+E($('#voidForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),why=f.why.value.trim();if(!why){f.why.focus();return}if(!VOID)return;
+  const fz=strip(F(VOID.id)),it=(fz[VOID.k]||[])[VOID.i];if(!it)return;it.void={d:TODAY,at:new Date().toISOString(),why};if(await put('fees',VOID.id,fz)){$('#voidDlg').close();VOID=null;toast(t('cancelledOn')+' '+fd(TODAY))}});
 const pad4=n=>String(n).padStart(4,'0');
+function nextRno(y){const used=Object.values(fees).flatMap(z=>z.payments||[]).map(p=>p.rno||'').filter(r=>r.startsWith('MLA-'+y+'-')).map(r=>+r.split('-')[2]||0);
+  const last=Math.max(0,+((settings.rno||{})[y])||0,...used);settings.rno={...(settings.rno||{}),[y]:last+1};return 'MLA-'+y+'-'+pad4(last+1)}
 
 /* ---------- events ---------- */
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]');if(!el)return;const a=el.dataset.a,id=el.dataset.id,i=+el.dataset.i;
@@ -499,7 +523,10 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'receipt':if(el.closest('#rcptDlg'))$('#rcptDlg').close();receipt(id,i,el.dataset.how);break;
   case 'readyShare':if(READY){const r=READY;READY=null;$('#readyDlg').close();navigator.share({files:[r.file],...(r.opt.text?{text:r.opt.text}:{})}).catch(()=>{})}break;
   case 'readyDl':if(READY){download(READY.file);if(READY.opt.wa)window.open(READY.opt.wa,'_blank');READY=null;$('#readyDlg').close()}break;
-  case 'rmItem':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const fz=strip(F(curId)),k=el.dataset.k;(fz[k]||[]).splice(i,1);if(await put('fees',curId,fz))toast(t('deleted'));break}
+  case 'txn':openMoney('pay',id);break;
+  case 'mkind':setKind(el.dataset.k);break;
+  case 'voidItem':{const fz=F(curId),it=(fz[el.dataset.k]||[])[i];if(!it||it.void)break;VOID={id:curId,k:el.dataset.k,i};E($('#voidForm')).reset();$('#voidInfo').textContent=rs(it.amt)+' · '+fd(it.d)+(it.rno?' · '+it.rno:'')+' · '+ctitle(byId(curId));$('#voidDlg').showModal();break}
+  case 'rmItem':{if(el.dataset.k!=='plan')break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const fz=strip(F(curId)),k=el.dataset.k;(fz[k]||[]).splice(i,1);if(await put('fees',curId,fz))toast(t('deleted'));break}
   case 'dlDone':{const c=byId(id);const d=strip(c);if(d.deadlines&&d.deadlines[i]){d.deadlines[i].done=true;if(await put('cases',id,d))toast(t('done'))}break}
   case 'pick':{const lab=el.closest('label');const inp=lab&&lab.querySelector('input,textarea');if(!inp)break;const k=el.dataset.k,v=el.dataset.v;if(k==='jump'){const base=E($('#hearForm')).d.value||TODAY;inp.value=addDays(base,+v)}else if(k==='jumpT')inp.value=addDays(TODAY,+v);else if(k==='ctype'||k==='city'){const parts=inp.value.split(',');let ty=parts[0].trim(),ci=parts.slice(1).join(',').trim();if(k==='ctype')ty=v;else if(v==='Other'){inp.value=ty?ty+', ':'';inp.focus();break}else ci=v;if(!ci&&k==='ctype')ci='Bahawalpur';inp.value=[ty,ci].filter(Boolean).join(', ')}else if(k==='outcome'){const cur=inp.value.trim(),pre=OUTCOMES.find(o=>cur===o||cur.startsWith(o+'. '));const rest=pre?cur.slice(pre.length).replace(/^\.\s*/,''):cur;inp.value=v+(rest?'. '+rest:'');const hf=E($('#hearForm'));if(v==='Decided'||v==='Compromise')hf.status.value='Decided';else if(v==='Withdrawn')hf.status.value='Withdrawn'}else inp.value=v;el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));break}
   case 'task':{curId=id;const c=byId(id),f=E($('#taskForm'));f.reset();f.rem.value=2;$('#tkCase').textContent=ctitle(c)+' · '+cname(c);fillPicks($('#taskDlg'));$('#taskDlg').showModal();break}
