@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://accounts.google.com https://oauth2.googleapis.com; frame-src https://accounts.google.com https://mla-diary.firebaseapp.com; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0c0c0e"><meta name="robots" content="noindex,nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="MLA Diary">
@@ -132,7 +133,7 @@ details.more{border:1px solid var(--line);border-radius:10px;padding:8px 12px;ma
 @media(max-width:600px){.day{grid-template-columns:1fr;gap:8px}.dt b{display:inline;font-size:24px;margin-inline-end:8px}.cal button{min-height:48px;padding:4px 2px}.dlrow{grid-template-columns:1fr 1fr}.dlrow button{grid-column:1/-1}
 table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:8px;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:2px 12px;padding-inline-start:8.5em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-7.5em;white-space:normal;color:var(--mute);font-size:13px}.stack td:empty{display:none}}
 </style>
-<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+
 </head>
 <body>
 <div id="lock" class="lock" hidden><div class="lockbox">
@@ -340,8 +341,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <button type="button" id="fab" data-a="fab" aria-label="Add">+</button>
 <dialog id="fabDlg"><div class="dh"><h3 data-t="newWhat"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><div class="acts fabacts"><button type="button" class="pri" data-a="newClient" data-t="newClient"></button><button type="button" class="pri" data-a="newCase" data-t="newCase"></button><button type="button" class="pri" data-a="appt" data-t="apptAdd"></button><button type="button" class="pri" data-a="otEdit" data-t="otAdd"></button><button type="button" data-a="goSearch" data-t="findCase"></button></div></div></dialog>
-<script src="config.js?v=22"></script>
-<script src="i18n.js?v=22"></script>
-<script src="app.js?v=22"></script>
+<script src="config.js?v=23"></script>
+<script src="i18n.js?v=23"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>

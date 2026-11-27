@@ -3,10 +3,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v22';const num=v=>{const s=String(v??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\d.]/g,'');return +s||0};const IT=600000;
+let TODAY=iso(new Date());const APPV='v23';const num=v=>{const s=String(v??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\d.]/g,'');return +s||0};const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
+const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])):d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
 let MASK=false;const rs=n=>MASK?'Rs •••••':'Rs '+Math.round(+n||0).toLocaleString('en-PK');
 const TYPES=['Civil','Criminal','Bail','Family','Khula / Divorce','Guardianship','Rent','Writ (LHC)','Appeal / Revision','Service','FIA','NAB','ATC','Banking','Revenue','Consumer','Other'];
 const ST=['Active','Decided','Withdrawn','Closed'];
@@ -41,7 +41,7 @@ function audDiff(coll,old,nw){if(!old)return coll==='fees'?'Fee record created':
   if((old.deadlines||[]).filter(x=>x.done).length<(nw.deadlines||[]).filter(x=>x.done).length)out.push('Filing/notice marked done');
   if(JSON.stringify(old.nextAct||null)!==JSON.stringify(nw.nextAct||null))out.push(nw.nextAct&&nw.nextAct.done?'Next action done':'Next action updated');
   return out.join('; ')}
-function audit(coll,id,what){if(!what)return;const e={at:new Date().toISOString(),by:who_(),coll,id,what};AUD.push(e);if(AUD.length>3000)AUD=AUD.slice(-3000);if(CLOUD&&C.ok){const fk=coll==='fees';if(fk&&!C.fk)return;encS(fk?C.fk:C.ok,e).then(p=>C.fs.collection('audit').doc().set({p,f:fk?1:0,u:Date.now()})).catch(()=>{})}}
+function audit(coll,id,what){if(!what)return;const e={at:new Date().toISOString(),by:who_(),coll,id,what};AUD.push(e);if(AUD.length>3000)AUD=AUD.slice(-3000);if(CLOUD&&C.ok){const fk=coll==='fees';if(fk&&!C.fk)return;encS(fk?C.fk:C.ok,e).then(p=>C.fs.collection('audit').doc().set({p,f:fk?1:0,by:C.email,u:Date.now()})).catch(()=>{})}}
 const naOpen=c=>c&&c.nextAct&&c.nextAct.text&&!c.nextAct.done?c.nextAct:null;
 const FIRM={name:'Mian Law Associates',adv:'Mian Aqil Nawaz, Advocate High Court',addr:'Chamber No. 39, District Courts, Kachahery Chowk, Bahawalpur',contact:'0333-3621111 · mianlawassociates1@gmail.com · mlabwp.com.pk'};
 const LIB={pdf:'vendor/jspdf.umd.min.js',at:'vendor/jspdf.plugin.autotable.min.js',xlsx:'vendor/xlsx.full.min.js'};
@@ -51,6 +51,7 @@ const t=k=>(I18N[LANG]&&I18N[LANG][k])||I18N.en[k]||k;
 const stL=s=>t('st_'+s);
 
 
+new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true});
 /* ---------- encrypted on-device storage ---------- */
 const IDB={db:null};
 function idbOpen(){return IDB.db?Promise.resolve(IDB.db):new Promise((ok,no)=>{const r=indexedDB.open('mla-diary',1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv');if(!d.objectStoreNames.contains('files'))d.createObjectStore('files')};r.onsuccess=()=>{IDB.db=r.result;ok(r.result)};r.onerror=()=>no(r.error)})}
@@ -68,8 +69,9 @@ let saving=Promise.resolve();
 const snapOf=()=>({schema:1,clients:[...clients,...arc.clients],cases:[...cases,...arc.cases],fees,settings,audit:AUD});
 function persist(){const snap=snapOf();saving=saving.then(async()=>{if(!S.key)return;if(CLOUD)await idbPut('kv','settings_'+C.email,await encJ(S.key,settings));else await idbPut('kv','state',await encJ(S.key,snap))}).catch(()=>toast('Could not save on this device — storage may be full'));return saving}
 const A={db:true};
+const ADVS=()=>[].concat((window.MLA_CLOUD||{}).advocate||[]).map(x=>String(x).toLowerCase());
 const CFG=(window.MLA_CLOUD&&window.MLA_CLOUD.firebase)?window.MLA_CLOUD:null,CLOUD=!!CFG;
-const C={fs:null,auth:null,email:'',adv:false,ok:null,fk:null,oraw:'',fraw:'',ring:null,unsub:[],cache:new Map(),aud:new Map(),q:Promise.resolve()};
+const C={fs:null,auth:null,email:'',adv:false,ok:null,pk:null,fk:null,oraw:'',fraw:'',ring:null,unsub:[],cache:new Map(),aud:new Map(),q:Promise.resolve()};
 const pk=o=>{const u=new Uint8Array(o.iv.length+o.ct.length);u.set(o.iv);u.set(o.ct,o.iv.length);return b64(u)};
 const unpk=s=>{const u=unb64(s);return{iv:u.slice(0,12),ct:u.slice(12)}};
 const encS=async(k,obj)=>pk(await encJ(k,obj)),decS=(k,s)=>decJ(k,unpk(s));
@@ -445,7 +447,7 @@ function vFee(){
 }
 function vAudit(){if(!isAdmin)return '';const l=AUD.slice(-60).reverse();if(!l.length)return '';
   const name=x=>x.coll==='clients'?(cli(x.id).name||'—'):ctitle([...cases,...arc.cases].find(c=>c.id===x.id)||{});
-  return `<h2 class="sec">${esc(t('changeHist'))}</h2><div class="hist">${l.map(x=>`<div><span class="meta">${fd(x.at.slice(0,10))} ${x.at.slice(11,16)} · ${esc(x.by)}</span> · <b>${esc(name(x))}</b><br>${esc(x.what)}</div>`).join('')}</div>`}
+  return `<h2 class="sec">${esc(t('changeHist'))}</h2><div class="hist">${l.map(x=>`<div><span class="meta">${fd(x.at.slice(0,10))} ${esc(String(x.at||'').slice(11,16))} · ${esc(x.by)}</span> · <b>${esc(name(x))}</b><br>${esc(x.what)}</div>`).join('')}</div>`}
 function vReports(){return vReports_()+vAudit()}
 function vReports_(){
   const m=TODAY.slice(0,7),act=cases.filter(c=>c.status==='Active');
@@ -520,7 +522,7 @@ function detail_(id){
   h+=`<h4>${esc(t('docs'))}</h4><div class="hist">${(c.docs||[]).length?(c.docs||[]).map((d,i)=>`<div><a href="#" data-a="viewDoc" data-i="${i}">${esc(d.name||'Document')}</a> <span class="meta">${fd(d.d)}</span><span class="sp"></span>${isAdmin?`<button class="sm ghost danger" type="button" data-a="delDoc" data-i="${i}">${esc(t('del'))}</button>`:''}</div>`).join(''):`<div class="meta">${esc(t('noDocs'))}</div>`}</div>`;
   {const ot=otasks().filter(x=>x.cid===id&&!x.done);h+=`<h4>${esc(t('otTitle'))}</h4><div class="hist">${ot.map(otRow).join('')||`<div class="meta">${esc(t('otNone'))}</div>`}</div><button class="sm ghost" type="button" data-a="otEdit" data-cid="${esc(id)}">${esc(t('otAdd'))}</button>`}
   h+=`<h4>${esc(t('hearHist'))}</h4><div class="hist">${hs.length?hs.map(x=>`<div><b>${fd(x.d)}</b> — ${esc(x.note||'—')}${x.next?` <span class="meta">→ ${fd(x.next)}</span>`:''}${x.order?`<br><span class="meta">${esc(t('orderText'))}: </span><i>${esc(x.order)}</i>`:''}</div>`).join(''):`<div class="meta">${esc(t('noHear'))}</div>`}</div>`;
-  {const hist=AUD.filter(x=>x.id===id).slice(-25).reverse();if(isAdmin&&hist.length)h+=`<details class="more"><summary>${esc(t('changeHist'))} · ${hist.length}</summary><div class="hist">${hist.map(x=>`<div><span class="meta">${fd(x.at.slice(0,10))} ${x.at.slice(11,16)} · ${esc(x.by)}${x.coll==='fees'?' · '+esc(t('fee')):''}</span><br>${esc(x.what)}</div>`).join('')}</div></details>`}
+  {const hist=AUD.filter(x=>x.id===id).slice(-25).reverse();if(isAdmin&&hist.length)h+=`<details class="more"><summary>${esc(t('changeHist'))} · ${hist.length}</summary><div class="hist">${hist.map(x=>`<div><span class="meta">${fd(x.at.slice(0,10))} ${esc(String(x.at||'').slice(11,16))} · ${esc(x.by)}${x.coll==='fees'?' · '+esc(t('fee')):''}</span><br>${esc(x.what)}</div>`).join('')}</div></details>`}
   h+=`<div class="acts" style="margin-top:12px"><button class="sm pri" type="button" data-a="caseFile" data-id="${esc(id)}">${esc(t('caseFilePdf'))}</button></div>`;
   if(isAdmin)h+=`<div style="border-top:1px solid var(--line);padding-top:12px"><button class="sm ghost danger" type="button" data-a="delCase">${esc(t('toArchive'))}</button></div>`;
   $('#dBody').innerHTML=h;
@@ -789,8 +791,8 @@ async function fileBytes(doc){
   if(CLOUD&&!doc.local){const s=await C.fs.collection('files').doc(doc.id).get();if(!s.exists)return null;const v=s.data();return{type:v.type,bytes:await dec(C.ok,unpk(v.p))}}
   const o=await idbGet('files',doc.id);if(!o)return null;return{type:o.type,bytes:await dec(CLOUD?C.ok:S.key,o)}}
 async function viewDoc(i){const c=byId(curId);const doc=c&&(c.docs||[])[i];if(!doc)return;
-  try{const f=await fileBytes(doc);if(!f){toast(t('fileMissing'));return}const blob=new Blob([f.bytes],{type:f.type});openBlob(blob,doc.name)}catch(x){toast(CLOUD?t('needOnline'):'Could not open file')}}
-function openBlob(blob,name){ext();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';if(!/^image\/|pdf/.test(blob.type))a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},120000)}
+  try{const f=await fileBytes(doc);if(!f){toast(t('fileMissing'));return}const safe=/^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(f.type||'');const blob=new Blob([f.bytes],{type:safe?f.type:'application/octet-stream'});openBlob(blob,doc.name)}catch(x){toast(CLOUD?t('needOnline'):'Could not open file')}}
+function openBlob(blob,name){ext();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';if(!/^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(blob.type))a.download=name||'file';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},120000)}
 document.addEventListener('input',e=>{const id=e.target.id;if(id==='q'||id==='cq'||id==='gq'){ui[id]=e.target.value;const p=e.target.selectionStart;render();const n=$('#'+id);n.focus();try{n.setSelectionRange(p,p)}catch(x){}}});
 document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.f==='task'){const o=e.target.parentElement.querySelector('[data-f=label]');o.style.display=e.target.value==='Other'?'':'none'}if(e.target.id==='f'){ui.f=e.target.value;render()}if(e.target.id==='cf'){ui.cf=e.target.value;render()}if(e.target.name==='court'&&e.target.closest('#caseForm')){const z=courtsDir().find(x=>x.name===e.target.value.trim()),f=E($('#caseForm'));if(z&&z.judge&&!f.judge.value)f.judge.value=z.judge}if(e.target.id==='causeD')ui.cause=e.target.value});
 
@@ -799,7 +801,7 @@ const pack=o=>({iv:b64(o.iv),ct:b64(o.ct),...(o.type?{type:o.type}:{})}),unpack=
 const packMeta=m=>({salt:b64(m.salt),ver:pack(m.ver),...(m.it?{it:m.it}:{}),...(m.rec?{rec:{salt:b64(m.rec.salt),blob:pack(m.rec.blob),made:m.rec.made||''}}:{})});
 const unpackMeta=m=>({salt:unb64(m.salt),ver:unpack(m.ver),...(m.it?{it:+m.it}:{}),...(m.rec?{rec:{salt:unb64(m.rec.salt),blob:unpack(m.rec.blob),made:m.rec.made||''}}:{})});
 async function encBackup(){
-  if(!S.key&&CLOUD)return;await saving;toast(t('working'));
+  if(CLOUD&&(!S.key||!C.adv)){toast(t('staffNote'));return}await saving;toast(t('working'));
   try{let out;
     if(!CLOUD){const meta=await idbGet('kv','meta'),state=await idbGet('kv','state'),keys=await idbKeys('files');if(!meta||!state){toast(t('nothingToBackup'));return}
       const files=[];for(const k of keys){const o=await idbGet('files',k);if(o)files.push({id:k,...pack(o)})}
@@ -825,12 +827,13 @@ async function doRestore(file,pass,pre){
     if(!(b.meta.it>=IT)){status(t('upgrading'));try{await rekey(b.pw,true)}finally{status('')}}return}
   // cloud: upload everything into the shared office data
   const d=b.data;let n=0;
-  for(const c of d.clients||[]){const {id,...r}=c;await put('clients',id,r);n++}
-  for(const c of d.cases||[]){const {id,...r}=c;for(const doc of r.docs||[]){const f=(b.o.files||[]).find(x=>x.id===doc.id);if(!f)continue;try{const bytes=await dec(b.key,unpack(f));const pp=pk(await enc(C.ok,bytes));if(pp.length<950000){await C.fs.collection('files').doc(doc.id).set({p:pp,type:f.type||'',u:Date.now()});delete doc.local}else{const oo=await enc(C.ok,bytes);oo.type=f.type;await idbPut('files',doc.id,oo);doc.local=1}}catch(x){}}
+  const newer=(coll,x)=>{const cur=(coll==='cases'?[...cases,...arc.cases]:[...clients,...arc.clients]).find(y=>y.id===x.id);return cur&&cur.updated&&x.updated&&cur.updated>x.updated};let skip=0;
+  for(const c of d.clients||[]){if(newer('clients',c)){skip++;continue}const {id,...r}=c;await put('clients',id,r);n++}
+  for(const c of d.cases||[]){if(newer('cases',c)){skip++;continue}const {id,...r}=c;for(const doc of r.docs||[]){const f=(b.o.files||[]).find(x=>x.id===doc.id);if(!f)continue;try{const bytes=await dec(b.key,unpack(f));const pp=pk(await enc(C.ok,bytes));if(pp.length<950000){await C.fs.collection('files').doc(doc.id).set({p:pp,type:f.type||'',u:Date.now()});delete doc.local}else{const oo=await enc(C.ok,bytes);oo.type=f.type;await idbPut('files',doc.id,oo);doc.local=1}}catch(x){}}
     await put('cases',id,r);n++}
   if(C.fk)for(const [id,f] of Object.entries(d.fees||{}))await put('fees',id,f);
   const ds=d.settings||{};for(const kind of ['appts','tasks','courts'])if((ds[kind]||[]).length)await setList(kind,[...OFF[kind].filter(x=>!ds[kind].some(y=>y.id===x.id)),...ds[kind]]);
-  for(const e of (d.audit||[]).slice(-1500)){const fk=e.coll==='fees';if(fk&&!C.fk)continue;try{await C.fs.collection('audit').doc().set({p:await encS(fk?C.fk:C.ok,e),f:fk?1:0,u:Date.now()})}catch(x){}}
+  for(const e of (d.audit||[]).slice(-1500)){const fk=e.coll==='fees';if(fk&&!C.fk)continue;try{await C.fs.collection('audit').doc().set({p:await encS(fk?C.fk:C.ok,{...e,what:e.what+' (imported)'}),f:fk?1:0,by:C.email,u:Date.now()})}catch(x){}}
   toast(t('restored')+' · '+n)}
 function load_(d){clients=d.clients||[];cases=d.cases||[];fees=d.fees||{};settings=d.settings||{};AUD=d.audit||[];arc={cases:[],clients:[]};moveArc()}
 
@@ -886,25 +889,26 @@ function cUnsub(){C.unsub.forEach(u=>{try{u()}catch(x){}});C.unsub=[]}
 function cRebuild(){const cs=[],cl=[],L={appt:[],task:[],court:[]};for(const [id,v] of C.cache){if(!v.o)continue;if(v.k==='case')cs.push({id,...v.o});else if(v.k==='client')cl.push({id,...v.o});else if(L[v.k])L[v.k].push({...v.o,id})}cases=cs;clients=cl;OFF.appts=L.appt;OFF.tasks=L.task;OFF.courts=L.court;arc={cases:[],clients:[]};moveArc()}
 function cSubscribe(){cUnsub();C.cache.clear();C.aud.clear();AUD=[];clients=[];cases=[];fees={};let first=0;const need=C.fk?2:1;const timer=setTimeout(()=>status(t('offline')),12000);
   const ready=()=>{if(++first>=need){clearTimeout(timer);status('')}};let r1=0,r2=0;
-  C.unsub.push(C.fs.collection('records').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.cache.delete(id);continue}const d=ch.doc.data();const c=C.cache.get(id);if(c&&c.p===d.p)continue;try{C.cache.set(id,{k:d.k,p:d.p,o:await decS(C.ok,d.p)})}catch(x){keyCheck()}}cRebuild();if(!snap.metadata.fromCache&&!r1++)ready();render()})},e=>{clearTimeout(timer);status(cErr(e))}));
-  C.unsub.push(C.fs.collection('audit').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.aud.delete(id);continue}const d=ch.doc.data();if(d.f&&!C.fk)continue;try{C.aud.set(id,await decS(d.f?C.fk:C.ok,d.p))}catch(x){}}AUD=[...C.aud.values()].sort((x,y)=>x.at<y.at?-1:1).slice(-3000);render()})},()=>{}));
+  C.unsub.push(C.fs.collection('records').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.cache.delete(id);continue}const d=ch.doc.data();const c=C.cache.get(id);if(c&&c.p===d.p)continue;try{C.cache.set(id,{k:d.k,p:d.p,o:await decS(C.ok,d.p)})}catch(x){try{if(!C.pk)throw 0;C.cache.set(id,{k:d.k,p:d.p,o:await decS(C.pk,d.p)})}catch(y){keyCheck()}}}cRebuild();if(!snap.metadata.fromCache&&!r1++)ready();render()})},e=>{clearTimeout(timer);status(cErr(e))}));
+  C.unsub.push(C.fs.collection('audit').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.aud.delete(id);continue}const d=ch.doc.data();if(d.f&&!C.fk)continue;try{const e=await decS(d.f?C.fk:C.ok,d.p);C.aud.set(id,{...e,by:d.by||e.by})}catch(x){}}AUD=[...C.aud.values()].sort((x,y)=>x.at<y.at?-1:1).slice(-3000);render()})},()=>{}));
   if(C.fk)C.unsub.push(C.fs.collection('fees').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){delete fees[id];continue}try{fees[id]=await decS(C.fk,ch.doc.data().p)}catch(x){}}if(!snap.metadata.fromCache&&!r2++)ready();render()})},e=>toast(cErr(e))));
 }
 async function keyCheck(){if(keyCheck.busy)return;keyCheck.busy=1;try{const r=await C.fs.collection('keyrings').doc(C.email).get();if(!r.exists||r.data().ring!==C.ring.ring){lock();$('#lkErr').textContent=t('keyChanged')}}catch(x){}finally{setTimeout(()=>keyCheck.busy=0,5000)}}
-async function rotateOffice(removed){status(t('rotating'));const nraw=rnd(32),nk=await rawKey(nraw);let n=0;
-  for(const d of (await C.fs.collection('records').get()).docs){const v=d.data();try{const o=await decS(C.ok,v.p);await C.fs.collection('records').doc(d.id).set({...v,p:await encS(nk,o),u:Date.now()});n++}catch(x){}}
-  for(const d of (await C.fs.collection('files').get()).docs){const v=d.data();try{const b=await dec(C.ok,unpk(v.p));await C.fs.collection('files').doc(d.id).set({...v,p:pk(await enc(nk,b)),u:Date.now()})}catch(x){}}
-  for(const d of (await C.fs.collection('audit').get()).docs){const v=d.data();if(v.f)continue;try{const o=await decS(C.ok,v.p);await C.fs.collection('audit').doc(d.id).set({...v,p:await encS(nk,o)})}catch(x){}}
-  for(const k of await idbKeys('files')){try{const o=await idbGet('files',k);const b=await dec(C.ok,o);const e=await enc(nk,b);e.type=o.type;await idbPut('files',k,e)}catch(x){}}
-  const ring={...C.ring,ring:await encS(S.key,{o:nraw,...(C.fraw?{f:C.fraw}:{})}),u:Date.now()};await C.fs.collection('keyrings').doc(C.email).set(ring);C.ring=ring;
+async function rotateOffice(removed){if(!C.adv||!navigator.onLine)throw new Error(t('needOnline'));status(t('rotating'));const old=C.oraw,ok0=C.ok,nraw=rnd(32),nk=await rawKey(nraw);let n=0,bad=0;
+  {const ring={...C.ring,ring:await encS(S.key,{o:nraw,prev:old,...(C.fraw?{f:C.fraw}:{})}),u:Date.now()};await C.fs.collection('keyrings').doc(C.email).set(ring);C.ring=ring;C.pk=ok0}
+  for(const d of (await C.fs.collection('records').get()).docs){const v=d.data();let o;try{o=await decS(ok0,v.p)}catch(x){try{await decS(nk,v.p);continue}catch(y){bad++;continue}}try{await C.fs.collection('records').doc(d.id).set({...v,p:await encS(nk,o),u:Date.now()});n++}catch(x){bad++}}
+  for(const d of (await C.fs.collection('files').get()).docs){const v=d.data();try{const b=await dec(ok0,unpk(v.p));await C.fs.collection('files').doc(d.id).set({...v,p:pk(await enc(nk,b)),u:Date.now()})}catch(x){}}
+  for(const d of (await C.fs.collection('audit').get()).docs){const v=d.data();if(v.f)continue;try{const o=await decS(ok0,v.p);await C.fs.collection('audit').doc(d.id).set({...v,p:await encS(nk,o)})}catch(x){}}
+  for(const k of await idbKeys('files')){try{const o=await idbGet('files',k);const b=await dec(ok0,o);const e=await enc(nk,b);e.type=o.type;await idbPut('files',k,e)}catch(x){}}
+  if(!bad){const ring={...C.ring,ring:await encS(S.key,{o:nraw,...(C.fraw?{f:C.fraw}:{})}),u:Date.now()};await C.fs.collection('keyrings').doc(C.email).set(ring);C.ring=ring;C.pk=null}else setTimeout(()=>alert(t('rotateRetry')+' ('+bad+')'),300);
   const others=(await C.fs.collection('staff').get()).docs.map(d=>d.id).filter(e=>e!==removed&&e!==C.email);
   for(const e of others){await C.fs.collection('keyrings').doc(e).delete().catch(()=>{});await C.fs.collection('staff').doc(e).set({added:TODAY,by:C.email,readd:1}).catch(()=>{})}
   await C.fs.collection('meta').doc('office').set({created:TODAY,by:C.email,rotated:new Date().toISOString()}).catch(()=>{});
   C.oraw=nraw;C.ok=nk;status('');cSubscribe();return others}
 async function makeRing(pass,keys){const salt=crypto.getRandomValues(new Uint8Array(16));const k=await deriveKey(pass,salt);return{k,doc:{salt:b64(salt),ver:pk(await enc(k,te.encode('mla-ok'))),ring:await encS(k,keys),u:Date.now()}}}
 async function staffList(){const el=$('#staffList');if(!el||!C.adv)return;try{const q=await C.fs.collection('staff').get();el.innerHTML=q.docs.length?q.docs.map(d=>`<div><b>${esc(d.id)}</b> <span class="meta">${esc(t('added'))} ${fd(d.data().added)}${d.data().readd?' · <b class="danger">'+esc(t('needReadd'))+'</b>':''}</span><span class="sp"></span><button class="sm ghost danger" type="button" data-a="rmStaff" data-id="${esc(d.id)}">${esc(t('remove'))}</button></div>`).join(''):`<div class="meta">${esc(t('noStaff'))}</div>`}catch(e){el.textContent=cErr(e)}}
-async function addStaff(email,pass){email=email.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(email)){toast(t('badEmail'));return}if(pass.length<6){toast(t('passShort'));return}
-  try{const r=await makeRing(pass,{o:C.oraw});await C.fs.collection('keyrings').doc(email).set(r.doc);await C.fs.collection('staff').doc(email).set({added:TODAY,by:C.email});audit('cases','-','Staff added: '+email);toast(t('staffAdded'));staffList()}catch(e){toast(cErr(e))}}
+async function addStaff(email,pass){email=email.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(email)){toast(t('badEmail'));return}if(pass.length<12){toast(t('tempLong'));return}
+  try{const r=await makeRing(pass,{o:C.oraw,...(ADVS().includes(email)&&C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(email).set({...r.doc,temp:1});await C.fs.collection('staff').doc(email).set({added:TODAY,by:C.email});audit('cases','-','Staff added: '+email);toast(t('staffAdded'));staffList()}catch(e){toast(cErr(e))}}
 
 /* ---------- settings view ---------- */
 const daysSince=d=>d?Math.floor((new Date(TODAY+'T00:00')-new Date(d+'T00:00'))/864e5):Infinity;
@@ -1056,8 +1060,8 @@ function lock(){LOCKING=true;AUD=[];S.key=null;S.pw='';UNDO=null;try{$('#undoBar
 async function showLock(){
   const f=E($('#lockForm'));f.reset();const err=$('#lkErr');err.textContent='';let mode;
   if(!CLOUD){const meta=await idbGet('kv','meta').catch(()=>null);S.meta=meta||null;mode=meta?'unlock':'setup'}
-  else{const u=C.auth.currentUser;if(!u)mode='login';else{C.email=(u.email||'').toLowerCase();C.adv=C.email===String(CFG.advocate||'').toLowerCase();
-    try{const r=await C.fs.collection('keyrings').doc(C.email).get();C.ring=r.exists?r.data():null;mode=C.ring?'unlock':(C.adv?'setup':'wait')}catch(e){mode='wait';err.textContent=cErr(e)}}}
+  else{const u=C.auth.currentUser;if(!u)mode='login';else{C.email=(u.email||'').toLowerCase();C.adv=ADVS().includes(C.email);
+    try{const r=await C.fs.collection('keyrings').doc(C.email).get();C.ring=r.exists?r.data():null;mode=C.ring?'unlock':'wait';if(!C.ring&&C.adv){const m=await C.fs.collection('meta').doc('office').get().catch(()=>null);mode=m&&m.exists?'wait':'setup'}}catch(e){mode='wait';err.textContent=cErr(e)}}}
   LKMODE=mode;const show=(sel,on)=>{$(sel).style.display=on?'':'none'};
   $('#lkSub').textContent={login:t('loginSub'),setup:CLOUD?t('setupCloudSub'):t('setupSub'),unlock:CLOUD?t('signedInAs')+' '+C.email:t('unlockSub'),wait:t('waitAdd')}[mode];
   show('#lkE',mode==='login');show('#lkU',mode!=='login'&&mode!=='wait');f.un.value=CLOUD&&C.email?C.email:'MLA Diary';show('#lkP1',mode!=='wait');show('#lkC',mode==='setup');show('#lkBtn',mode!=='wait');show('#lkRetry',mode==='wait');show('#lkOut',CLOUD&&mode!=='login');
@@ -1099,7 +1103,7 @@ $('#lockForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(
     try{const k=await deriveKey(p1,unb64(C.ring.salt));await dec(k,unpk(C.ring.ver));thrOk();await unlockCloud(k,await decS(k,C.ring.ring))}catch(x){thrFail();err.textContent=t('wrongPass')}
   }catch(x){err.textContent=cErr(x)}finally{btn.disabled=false}
 });
-async function unlockCloud(k,keys){S.key=k;S.meta={salt:unb64(C.ring.salt),ver:unpk(C.ring.ver)};C.oraw=keys.o;C.fraw=keys.f||'';C.ok=await rawKey(keys.o);C.fk=keys.f?await rawKey(keys.f):null;
+async function unlockCloud(k,keys){S.key=k;S.meta={salt:unb64(C.ring.salt),ver:unpk(C.ring.ver)};C.oraw=keys.o;C.fraw=keys.f||'';C.ok=await rawKey(keys.o);C.pk=keys.prev?await rawKey(keys.prev):null;C.ring.temp&&setTimeout(()=>{view='settings';render();alert(t('tempPassNow'))},800);C.fk=keys.f?await rawKey(keys.f):null;
   {const s=await idbGet('kv','settings_'+C.email).catch(()=>null);try{settings=s&&s.iv&&s.ct?await decJ(k,s):(s||{})}catch(x){settings={}}}cSubscribe();opened()}
 document.addEventListener('submit',async e=>{
   if(e.target.id==='staffForm'){e.preventDefault();const f=E(e.target);await addStaff(f.e.value,f.p.value);f.reset();return}

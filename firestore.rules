@@ -2,15 +2,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function em() { return request.auth.token.email.lower(); }
-    function adv() { return request.auth != null && em() == 'aqilnawaz@gmail.com'; }
+    function adv() { return request.auth != null && em() in ['aqilnawaz@gmail.com', 'mianlawassociates1@gmail.com']; }
     function staff() { return request.auth != null && (adv() || exists(/databases/$(database)/documents/staff/$(em()))); }
 
     match /meta/{d}       { allow read: if staff(); allow write: if adv(); }
     match /staff/{e}      { allow read: if staff(); allow write: if adv(); }
-    match /keyrings/{e}   { allow read, write: if adv() || (staff() && em() == e); }
-    match /records/{id}   { allow read, create, update: if staff(); allow delete: if adv() || (staff() && resource.data.k in ['appt','task']); }
-    match /files/{id}     { allow read, create, update: if staff(); allow delete: if adv(); }
-    match /audit/{id}     { allow read, create: if staff(); allow update: if adv(); allow delete: if false; }
+    match /keyrings/{e}   { allow read, write: if adv() || (staff() && em() == e && !adv()); }
+    function okKind() { return request.resource.data.k in ['case','client','appt','task','court']; }
+    match /records/{id}   { allow read: if staff();
+                            allow create: if staff() && okKind();
+                            allow update: if staff() && okKind() && request.resource.data.k == resource.data.k;
+                            allow delete: if adv() || (staff() && resource.data.k in ['appt','task']); }
+    match /files/{id}     { allow read, create: if staff(); allow update, delete: if adv(); }
+    match /audit/{id}     { allow read: if staff(); allow create: if staff() && request.resource.data.by == em(); allow update: if adv(); allow delete: if false; }
     match /fees/{id}      { allow read, write: if adv(); }
   }
 }
