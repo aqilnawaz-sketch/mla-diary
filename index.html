@@ -290,6 +290,9 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     <label><span data-t="judge"></span><input name="judge"></label><label><span data-t="room"></span><input name="room"></label></div>
     <label><span data-t="note"></span><input name="note"></label>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button><button type="button" class="ghost danger" id="courtDel" data-a="courtDel" data-t="del"></button></div></div></form></dialog>
+<dialog id="bkDlg"><div class="dh"><h3 data-t="bkDaily"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><p data-t="bkDailyHelp"></p><p class="meta"><span data-t="lastBackup"></span>: <b id="bkLast"></b></p>
+  <div class="acts"><button type="button" class="pri" data-a="bkGo" data-t="backupNow"></button><button type="button" class="ghost" data-a="close" data-t="later"></button></div></div></dialog>
 <dialog id="voidDlg"><form id="voidForm" autocomplete="off">
   <div class="dh"><h3 data-t="voidBtn"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><p id="voidInfo"></p><p class="meta" data-t="voidHelp"></p><label><span data-t="reason"></span><input name="why" data-voice></label>
@@ -337,8 +340,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <button type="button" id="fab" data-a="fab" aria-label="Add">+</button>
 <dialog id="fabDlg"><div class="dh"><h3 data-t="newWhat"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><div class="acts fabacts"><button type="button" class="pri" data-a="newClient" data-t="newClient"></button><button type="button" class="pri" data-a="newCase" data-t="newCase"></button><button type="button" class="pri" data-a="appt" data-t="apptAdd"></button><button type="button" class="pri" data-a="otEdit" data-t="otAdd"></button><button type="button" data-a="goSearch" data-t="findCase"></button></div></div></dialog>
-<script src="config.js?v=18"></script>
-<script src="i18n.js?v=18"></script>
-<script src="app.js?v=18"></script>
+<script src="config.js?v=19"></script>
+<script src="i18n.js?v=19"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

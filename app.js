@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v18';const IT=600000;
+let TODAY=iso(new Date());const APPV='v19';const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -578,11 +578,11 @@ E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const
   d.related=$$('#relRows .ptrow').map(r=>({rel:r.querySelector('[data-f=rel]').value,id:r.querySelector('[data-f=cid]').value})).filter(r=>r.id);
   const ph=dg(d.phone).slice(-10),cn=dg(d.cnic);const dup=clients.find(x=>x.id!==id&&((ph.length>=10&&dg(x.phone).slice(-10)===ph)||(cn.length>=13&&dg(x.cnic)===cn)));
   if(dup&&!DUP_OK){DUPID=dup.id;$('#dupInfo').textContent=(dup.name||t('untitledClient'))+(dup.phone?' · '+dup.phone:'')+(dup.cnic?' · '+dup.cnic:'')+' — '+cases.filter(x=>x.clientId===dup.id).length+' '+t('cases_n');$('#dupDlg').showModal();return}DUP_OK=false;
-  if(await put('clients',id,d)){curClient=id;toast(t('saved'));clientCases(id)}
+  if(await put('clients',id,d)){curClient=id;$('#clTitle').textContent=d.name||t('untitledClient');$('#clEdit').open=false;delete $('#delClientBtn').dataset.sure;$('#delClientBtn').style.display=isAdmin?'':'none';toast('✓ '+t('clientSaved'));clientCases(id);if(!d.name&&!d.phone)setTimeout(()=>toast(t('warnNoName')),1800)}
 });
 const relRow=(r,self)=>`<div class="ptrow"><select data-f="rel">${RELS.map(x=>`<option ${x===r.rel?'selected':''}>${esc(x)}</option>`).join('')}</select><select data-f="cid"><option value=""></option>${clients.filter(x=>x.id!==self).sort((x,y)=>(x.name||'').localeCompare(y.name||'')).map(x=>`<option value="${esc(x.id)}" ${x.id===r.id?'selected':''}>${esc(x.name||t('untitledClient'))}${x.phone?' · '+esc(x.phone):''}</option>`).join('')}</select><button class="sm ghost danger" type="button" data-a="rmPt" aria-label="Remove">✕</button></div>`;
 let DUP_OK=false,DUPID='';
-E($('#otForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(f.type.value==='Other'&&!f.text.value.trim()){f.text.focus();return}
+E($('#otForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);
   const x={id:f.dataset.id||'o'+newId(),type:f.type.value,text:f.text.value.trim(),who:f.who.value,d:f.d.value,cid:f.cid.value,done:false,by:who_(),at:new Date().toISOString()};
   const old=otasks().find(z=>z.id===x.id);if(old){x.by=old.by;x.at=old.at}settings.tasks=[...otasks().filter(z=>z.id!==x.id),x];if(x.cid)audit('cases',x.cid,(old?'Task edited: ':'Task added: ')+x.type+(x.text?' — '+x.text:''));
   await persist();$('#otDlg').close();render();toast(t('saved'))});
@@ -612,7 +612,7 @@ async function caseFile(cid){const c=byId(cid);if(!c)return;const cl=cli(c.clien
 E($('#logForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),cl=clients.find(x=>x.id===curClient);if(!cl)return;
   const d=strip(cl);d.log=[...(d.log||[]).map(x=>x.fu&&!x.fuDone?{...x,fuDone:true}:x),{d:TODAY,at:new Date().toISOString(),type:f.type.value,note:f.note.value.trim(),fu:f.fu.value}];
   if(await put('clients',cl.id,d)){$('#logDlg').close();toast(t('saved'));clientCases(cl.id)}});
-E($('#apptForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(!f.title.value.trim()){f.title.focus();return}if(!f.d.value){f.d.focus();return}
+E($('#apptForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(!f.title.value.trim())f.title.value=f.kind.value==='Personal'?t('personal'):t('appointment');if(!f.d.value){f.d.value=TODAY;toast(t('warnToday'))}
   const nmv=f.who.value.trim().toLowerCase(),cl=nmv&&clients.find(c=>(c.name||'').trim().toLowerCase()===nmv);
   const x={id:f.dataset.id||'a'+newId(),kind:f.kind.value,title:f.title.value.trim(),d:f.d.value,time:f.time.value,cid:cl?cl.id:'',note:f.note.value.trim()+(nmv&&!cl?(f.note.value.trim()?' · ':'')+f.who.value.trim():''),done:false};
   settings.appts=[...appts().filter(z=>z.id!==x.id),x];await persist();$('#apptDlg').close();render();toast(t('saved'))});
@@ -653,7 +653,7 @@ function clientCases_(id){const cs=id?cases.filter(x=>x.clientId===id):[];if(!id
   ${Object.entries(groups).map(([ty,list])=>`<div class="grp"><h5>${esc(ty)} · ${list.length}</h5>${list.map(caseCard).join('')}</div>`).join('')||`<p class="meta">${esc(t('noCasesYet'))}</p>`}`}
 
 
-E($('#taskForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;if(!f.d.value){f.d.focus();return}
+E($('#taskForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;if(!f.d.value){toast(t('warnNeedDate'));f.d.focus();return}
   const d=strip(c);d.deadlines=[...(d.deadlines||[]),{label:f.label.value.trim()||'Task',d:f.d.value,rem:Math.max(0,+f.rem.value||0),done:false}];if(await put('cases',c.id,d)){$('#taskDlg').close();toast(t('saved'))}});
 E($('#hearForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;
   const before=clone(c),d=strip(c);d.hearings=[...(d.hearings||[]),{d:f.d.value||TODAY,note:f.note.value.trim(),order:f.order.value.trim(),next:f.next.value}];
@@ -669,7 +669,7 @@ function setKind(kind){moneyKind=kind;const f=E($('#moneyForm'));
   f.d.value=kind==='inst'?addDays(TODAY,30):TODAY}
 function openMoney(kind,id){curId=id;const c=byId(id),f=E($('#moneyForm'));f.reset();f.bill.checked=true;setKind(kind);fillPicks($('#moneyDlg'));
   $('#mCase').textContent=ctitle(c)+' · '+(credit(id)?t('creditBal')+' '+rs(credit(id)):t('balance')+' '+rs(bal(id)));addMics();$('#moneyDlg').showModal()}
-E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=+f.amt.value||0;if(!amt){f.amt.focus();return}
+E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=+f.amt.value||0;if(!amt){toast(t('warnNeedAmt'));f.amt.focus();return}
   const fz=strip(F(id));const item={d:f.d.value||TODAY,amt,note:f.note.value.trim()};let key='payments';
   if(moneyKind==='pay'){item.mode=f.mode.value;item.rno=nextRno(item.d.slice(0,4))}
   else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else if(moneyKind==='disc'||moneyKind==='woff'){key='adjust';item.kind=moneyKind}else{key='plan';item.rem=Math.max(0,+f.rem.value||0)}
@@ -736,6 +736,9 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'courtDel':{const fid=E($('#courtForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.courts=courtsDir().filter(z=>z.id!==fid);await persist();$('#courtDlg').close();render();break}
   case 'courtImport':{const have=new Set(courtsDir().map(z=>z.name));const add=[...new Set(cases.map(c=>c.court).filter(Boolean))].filter(c=>!have.has(c)).map(c=>{const j=cases.find(x=>x.court===c&&x.judge);const p=c.split(',');return{id:'k'+newId(),name:c,cat:COURT_TYPES.includes(p[0].trim())?p[0].trim():'',city:(p[1]||'').trim(),judge:j?j.judge:'',room:'',note:''}});settings.courts=[...courtsDir(),...add];await persist();render();toast(t('saved')+' · '+add.length);break}
   case 'caseFile':caseFile(id);break;
+  case 'bkGo':$('#bkDlg').close();encBackup();break;
+  case 'rpRestore':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const o=await idbGet('kv',id);if(!o||!S.meta||o.salt!==b64(S.meta.salt))break;
+    try{const data=await decJ(S.key,o.st);await saving;await idbPut('kv','rpundo',{st:await idbGet('kv','state'),salt:o.salt,at:new Date().toISOString()});await idbPut('kv','state',o.st);load_(data);audit('cases','-','Restored to restore point '+id.slice(3));await persist();render();toast(t('restored'))}catch(x){toast(t('badFile'))}break}
   case 'addPt':$('#ptRows').insertAdjacentHTML('beforeend',ptRow({role:'Respondent'}));break;
   case 'rmPt':el.closest('.ptrow').remove();break;
   case 'naEdit':{CFMORE=true;openCase(byId(id));setTimeout(()=>{const n=E($('#caseForm')).naText;if(n){try{n.scrollIntoView({block:'center'})}catch(x){}n.focus()}},60);break}
@@ -883,7 +886,14 @@ async function addStaff(email,pass){email=email.trim().toLowerCase();if(!/^\S+@\
 
 /* ---------- settings view ---------- */
 const daysSince=d=>d?Math.floor((new Date(TODAY+'T00:00')-new Date(d+'T00:00'))/864e5):Infinity;
-function backupNote(){if(!cases.length&&!clients.length)return '';const n=daysSince(settings.lastBackup);if(n<7)return '';return `<div class="note">${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <button class="sm" type="button" data-a="encBackup">${esc(t('backupNow'))}</button></div>`}
+async function dailyPoint(){try{const st=await idbGet('kv','state');if(!st||!S.meta)return;const k='rp_'+TODAY;
+    const keys=(await idbKeys('kv')).filter(x=>String(x).startsWith('rp_')).sort();
+    if(!keys.includes(k)){await idbPut('kv',k,{st,salt:b64(S.meta.salt),at:new Date().toISOString(),n:[cases.length+arc.cases.length,clients.length+arc.clients.length]});keys.push(k)}
+    for(const old of keys.sort().slice(0,Math.max(0,keys.length-7)))await idbDel('kv',old)}catch(x){}}
+async function rpList(){const el=$('#rpList');if(!el)return;try{const keys=(await idbKeys('kv')).filter(x=>String(x).startsWith('rp_')).sort().reverse();
+  const rows=[];for(const k of keys){const o=await idbGet('kv',k);const same=S.meta&&o&&o.salt===b64(S.meta.salt);rows.push(`<div><b>${fd(k.slice(3))}</b> <span class="meta">${o&&o.n?o.n[0]+' '+esc(t('bkCases'))+', '+o.n[1]+' '+esc(t('bkClients')):''}${same?'':' · '+esc(t('rpOldPass'))}</span><span class="sp"></span>${same&&k.slice(3)!==TODAY?`<button class="sm ghost" type="button" data-a="rpRestore" data-id="${esc(k)}">${esc(t('restoreItem'))}</button>`:''}</div>`)}
+  el.innerHTML=rows.join('')||`<div class="meta">${esc(t('never'))}</div>`}catch(x){}}
+function backupNote(){if(!cases.length&&!clients.length)return '';const n=daysSince(settings.lastBackup);if(n<1)return '';return `<div class="note" style="${n>=3?'background:var(--tape2);border:1px solid var(--tape)':''}">${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <button class="sm" type="button" data-a="encBackup">${esc(t('backupNow'))}</button></div>`}
 function vSettings(){
   const al=settings.autoLock||5;
   let h=`<div class="panel"><h3>${esc(t('appVersion'))}: ${APPV}</h3><p class="meta">${esc(t('updHelp'))}</p><button class="pri" type="button" data-a="appUpdate">${esc(t('updNow'))}</button></div>`;
@@ -898,13 +908,14 @@ function vSettings(){
   h+=`<div class="panel"><h3>${esc(t('reminders'))}</h3><p class="meta">${esc(t('icsHelp'))}</p><p class="meta">${esc(t('lastIcs'))}: <b>${settings.icsAt?fd(settings.icsAt):esc(t('never'))}</b></p><button class="pri" type="button" data-a="ics">${esc(t('icsBtn'))}</button></div>`;
   h+=`<div class="panel"><h3>${esc(t('importExcel'))}</h3><p class="meta">${esc(t('importHelp'))}</p>`+(IMPORT?`<div class="note">${esc(t('importFound'))}: <b>${IMPORT.length}</b> — ${IMPORT.slice(0,3).map(r=>esc(r.title||r.client)).join(', ')}${IMPORT.length>3?'…':''}</div><div class="acts"><button class="pri" type="button" data-a="runImport">${esc(t('importNow'))}</button><button type="button" class="ghost" data-a="cancelImport">${esc(t('cancel'))}</button></div>`:`<div class="acts"><button type="button" data-a="pickExcel">${esc(t('importExcel'))}</button><button type="button" class="ghost" data-a="xlTemplate">${esc(t('template'))}</button></div>`)+`</div>`;
   h+=`<div class="panel"><h3>${esc(t('backup'))}</h3><p class="meta">${esc(t('backupHelp'))}</p><p>${esc(t('lastBackup'))}: <b>${settings.lastBackup?fd(settings.lastBackup):esc(t('never'))}</b> · <span class="meta">${esc(t('backupMail'))}: ${esc(settings.backupMail||BKMAIL)}</span></p>
-  <div class="acts"><button class="pri" type="button" data-a="encBackup">${esc(t('backupNow'))}</button><button type="button" data-a="restoreStart">${esc(CLOUD?t('importBackup'):t('restore'))}</button><button type="button" data-a="backup">${esc(t('exportExcel'))}</button></div></div>
+  <div class="acts"><button class="pri" type="button" data-a="encBackup">${esc(t('backupNow'))}</button><button type="button" data-a="restoreStart">${esc(CLOUD?t('importBackup'):t('restore'))}</button><button type="button" data-a="backup">${esc(t('exportExcel'))}</button></div>
+  ${CLOUD?'':`<h4>${esc(t('rpTitle'))}</h4><p class="meta">${esc(t('rpHelp'))}</p><div class="hist" id="rpList"><div class="meta">…</div></div>`}</div>
   ${isAdmin?`<div class="panel"><h3>${esc(t('courtDir'))}</h3><p class="meta">${esc(t('courtDirHelp'))}</p><div class="hist">${courtsDir().slice().sort((x,y)=>x.name.localeCompare(y.name)).map(z=>`<div><b>${esc(z.name)}</b> <span class="meta">${[z.judge,z.room?t('room')+' '+z.room:'',z.note].filter(Boolean).map(esc).join(' · ')} · ${cases.filter(c=>c.court===z.name&&c.status==='Active').length} ${esc(t('cases_n'))}</span><span class="sp"></span><button class="sm ghost" type="button" data-a="courtEdit" data-id="${esc(z.id)}">${esc(t('edit'))}</button></div>`).join('')||`<div class="meta">${esc(t('courtNone'))}</div>`}</div><div class="acts"><button class="sm" type="button" data-a="courtEdit">${esc(t('courtAdd'))}</button>${[...new Set(cases.map(c=>c.court).filter(Boolean))].filter(c=>!courtsDir().some(z=>z.name===c)).length?`<button class="sm ghost" type="button" data-a="courtImport">${esc(t('courtImport'))}</button>`:''}</div></div>`:''}
   ${vArchive()}
   <div class="panel"><h3>${esc(t('device'))}</h3><p class="meta">${esc(CLOUD?t('cloudOn'):t('localOnly'))}</p><p class="meta" id="storeInfo"></p><p class="meta">${esc(t('installHint'))}</p></div>
   <div class="panel"><h3 class="danger">${esc(CLOUD?t('removeDevice'):t('erase'))}</h3><p class="meta">${esc(CLOUD?t('removeDeviceHelp'):t('eraseHelp'))}</p><button type="button" class="ghost danger" data-a="eraseStart">${esc(CLOUD?t('removeDevice'):t('erase'))}</button></div>`;
   return h}
-async function storeInfo(){staffList();bioBox();const el=$('#storeInfo');if(!el||!navigator.storage||!navigator.storage.estimate)return;try{const e=await navigator.storage.estimate();const p=navigator.storage.persisted?await navigator.storage.persisted():false;el.textContent=`${t('storageUsed')}: ${(e.usage/1048576).toFixed(1)} MB · ${p?t('persistOn'):t('persistOff')}`}catch(x){}}
+async function storeInfo(){rpList();staffList();bioBox();const el=$('#storeInfo');if(!el||!navigator.storage||!navigator.storage.estimate)return;try{const e=await navigator.storage.estimate();const p=navigator.storage.persisted?await navigator.storage.persisted():false;el.textContent=`${t('storageUsed')}: ${(e.usage/1048576).toFixed(1)} MB · ${p?t('persistOn'):t('persistOff')}`}catch(x){}}
 
 /* ---------- Google Calendar sync (iPhone + Android via Google Calendar) ---------- */
 const GCID=window.MLA_GOOGLE_CLIENT_ID||'';
@@ -982,7 +993,7 @@ async function resumeDraft(){const d=DRAFT;DRAFT=null;if(!d){render();return}
 let idleT=null,hiddenAt=0,fails=0,waitUntil=0,LKMODE='';
 function bump(){if(!S.key)return;clearTimeout(idleT);idleT=setTimeout(lock,(settings.autoLock||5)*60000)}
 ['pointerdown','keydown','touchstart','scroll'].forEach(ev=>document.addEventListener(ev,bump,{passive:true}));
-document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();if(S.key&&!(+settings.hideLock>0)&&Date.now()>EXTUNTIL)lock()}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();if(S.key&&!(+settings.hideLock>0)&&Date.now()>EXTUNTIL&&!$$('dialog[open] form').length)lock()}
   else{rollDay();if(S.key&&hiddenAt&&Date.now()-hiddenAt>(+settings.hideLock>0?+settings.hideLock:2)*60000)lock();EXTUNTIL=0;hiddenAt=0}});
 const EXTA=new Set(['scan','upload','pickExcel','bioOn','bioUnlock','gcalConnect','gcalSync','receipt','feeDoc','causePdf','causePrint','causeXls','roundSheet','encBackup','backup','ics','icsShare','icsGoogle','feeRem','readyShare','readyDl','viewDoc','recPrint','erCopy','mic']);
 document.addEventListener('click',e=>{const el=e.target.closest('a[href]:not([href="#"]),input[type=file],[data-a]');if(!el)return;if(el.matches('a[href]:not([href="#"]),input[type=file]')||EXTA.has(el.dataset.a))ext()},true);
@@ -1040,7 +1051,9 @@ async function opened(){
   if(LASTP){S.pw=LASTP;LASTP='';try{if(window.PasswordCredential&&navigator.credentials&&navigator.credentials.store)navigator.credentials.store(new PasswordCredential({id:CLOUD&&C.email?C.email:'MLA Diary',password:S.pw,name:'MLA Diary'})).catch(()=>{})}catch(x){}}
   $('#lock').hidden=true;$('#appWrap').hidden=false;view='home';isAdmin=!CLOUD||!!C.fk;rollDay();applyLang();bump();
   if(!CLOUD){const r=await eraseReq();if(r){await idbDel('kv','eraseReq').catch(()=>{});setTimeout(()=>alert(t('erNote')),300)}}
+  if(!CLOUD)await dailyPoint();
   await loadDraft();if(DRAFT)render();
+  if((cases.length||clients.length)&&settings.lastBackup!==TODAY&&settings.bkAsked!==TODAY&&!RECUSED){settings.bkAsked=TODAY;persist();$('#bkLast').textContent=settings.lastBackup?fd(settings.lastBackup):t('never');setTimeout(()=>{if(S.key&&!$$('dialog[open]').length)$('#bkDlg').showModal()},600)}
   if(RECUSED){RECUSED=false;view='settings';render();toast(t('setNewPass'));setTimeout(()=>{const o=$('#pwForm [name=o]');if(o){o.value=S.pw;const n=$('#pwForm [name=n]');if(n){try{n.scrollIntoView({block:'center'})}catch(x){}n.focus()}}},80)}
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(x){}
   load(LIB.pdf).then(()=>load(LIB.at)).catch(()=>{});logo();
