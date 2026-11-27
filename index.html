@@ -112,6 +112,20 @@ details summary{cursor:pointer;font-weight:600;color:var(--gold2);min-height:28p
 #view a,dialog a:not(.btn){color:var(--gold2)}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--gold);color:#16120a;font-weight:600;padding:12px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw}
 .toast.on{opacity:1}
+#tabs{position:fixed;left:0;right:0;bottom:0;z-index:4;margin:0;max-width:none;background:var(--bg2);border-top:1px solid #3a321c;display:flex;justify-content:space-around;gap:2px;padding:4px 4px calc(4px + env(safe-area-inset-bottom));overflow:visible}
+#tabs button{flex:1 1 0;min-width:0;border-radius:10px;min-height:54px;padding:4px 2px;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.2}
+#tabs button i{font-style:normal;font-size:19px;line-height:1}
+#tabs button.on{background:var(--bg);color:var(--gold2);box-shadow:inset 0 -3px 0 var(--gold)}
+#appWrap main{padding-bottom:150px}
+header{padding-bottom:14px}
+#fab{position:fixed;inset-inline-end:18px;bottom:calc(76px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;font:400 32px/1 system-ui;z-index:4;background:linear-gradient(180deg,var(--gold2),var(--gold));color:#16120a;border:0;box-shadow:0 6px 18px rgba(0,0,0,.5);padding:0}
+#appWrap[hidden]~#fab,#appWrap[hidden]~#undoBar{display:none}
+.toast{bottom:calc(150px + env(safe-area-inset-bottom))}
+.undobar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom));z-index:6;background:#1d1c24;border:1px solid var(--gold);border-radius:10px;padding:8px 10px 8px 16px;display:flex;gap:14px;align-items:center;max-width:92vw;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.undobar[hidden]{display:none}
+.seg{display:flex;gap:6px;margin:0 0 16px;flex-wrap:wrap}.seg button{border-radius:999px}.seg button.on{background:var(--gold);color:#16120a;border-color:var(--gold)}
+button.chip{text-align:start;cursor:pointer;color:var(--ink);font:inherit;display:block;min-height:0}
+.fabacts button{flex:1 1 200px;min-height:56px;font-size:17px}
 @media(prefers-reduced-motion:reduce){.toast{transition:none}}
 @media(max-width:600px){.day{grid-template-columns:1fr;gap:8px}.dt b{display:inline;font-size:24px;margin-inline-end:8px}.cal button{min-height:48px;padding:4px 2px}.dlrow{grid-template-columns:1fr 1fr}.dlrow button{grid-column:1/-1}
 table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:8px;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:2px 12px;padding-inline-start:8.5em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-7.5em;white-space:normal;color:var(--mute);font-size:13px}.stack td:empty{display:none}}
@@ -137,7 +151,7 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <header>
   <div class="top">
     <div class="brand"><img src="icons/mian-law-associates-logo-128.webp" alt="Mian Law Associates"><div><h1>MLA <span>Diary</span></h1><div class="sub" data-t="appSub"></div></div></div>
-    <div class="hb"><button type="button" class="ghost" data-a="lockNow" data-t="lockBtn"></button><button type="button" class="ghost" data-a="lang" data-t="langBtn"></button><button class="pri" type="button" data-a="newCase" data-t="newCase"></button></div>
+    <div class="hb"><button type="button" class="ghost" data-a="priv" id="privBtn"></button><button type="button" class="ghost" data-a="lockNow" data-t="lockBtn"></button><button type="button" class="ghost" data-a="lang" data-t="langBtn"></button><button class="pri" type="button" data-a="newCase" data-t="newCase"></button></div>
   </div>
   <nav id="tabs"></nav>
 </header>
@@ -276,8 +290,12 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <input type="file" id="xlIn" accept=".xlsx,.xls,.csv" hidden>
 <datalist id="courts"></datalist><datalist id="clientList"></datalist>
 <div class="toast" id="toast" role="status"></div>
-<script src="config.js?v=14"></script>
-<script src="i18n.js?v=14"></script>
-<script src="app.js?v=14"></script>
+<div id="undoBar" class="undobar" hidden><span></span><button type="button" class="sm pri" data-a="undo" data-t="undo"></button></div>
+<button type="button" id="fab" data-a="fab" aria-label="Add">+</button>
+<dialog id="fabDlg"><div class="dh"><h3 data-t="newWhat"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><div class="acts fabacts"><button type="button" class="pri" data-a="newClient" data-t="newClient"></button><button type="button" class="pri" data-a="newCase" data-t="newCase"></button><button type="button" data-a="goSearch" data-t="findCase"></button></div></div></dialog>
+<script src="config.js?v=15"></script>
+<script src="i18n.js?v=15"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>
