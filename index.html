@@ -219,6 +219,8 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
     </div>
     <label><span data-t="address"></span><input name="address"></label>
     <label><span data-t="notes"></span><textarea name="notes" rows="2" data-voice></textarea></label>
+    <label><span data-t="clStatus"></span><select name="cstatus"></select></label>
+    <h4 data-t="family"></h4><p class="meta" data-t="familyHelp"></p><div id="relRows" class="hist"></div><button type="button" class="sm ghost" data-a="addRel" data-t="addRel"></button>
     <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button><button type="button" class="ghost danger" data-a="delClient" id="delClientBtn" data-t="toArchive"></button></div>
     </div></details>
   </div>
@@ -261,6 +263,21 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
   </div>
 </form></dialog>
 
+<dialog id="dupDlg"><div class="dh"><h3 data-t="dupTitle"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><p data-t="dupHelp"></p><p><b id="dupInfo"></b></p><div class="acts"><button type="button" class="pri" data-a="dupOpen" data-t="dupOpen"></button><button type="button" data-a="dupSave" data-t="saveAnyway"></button></div></div></dialog>
+<dialog id="logDlg"><form id="logForm" autocomplete="off"><div class="dh"><h3 data-t="contactLog"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><div class="meta" id="logWho"></div>
+    <label><span data-t="logType"></span><select name="type"><option>Call</option><option>WhatsApp</option><option>Meeting</option><option>SMS</option><option>Other</option></select></label>
+    <label><span data-t="note"></span><textarea name="note" rows="2" data-voice></textarea></label>
+    <label><span data-t="followUp"></span><input type="date" name="fu"><div class="pick" data-pick="jumpT"></div></label>
+    <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button></div></div></form></dialog>
+<dialog id="apptDlg"><form id="apptForm" autocomplete="off"><div class="dh"><h3 data-t="apptAdd"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
+  <div class="db"><label><span data-t="apptKind"></span><select name="kind"><option value="Appointment" data-t="appointment"></option><option value="Personal" data-t="personal"></option></select></label>
+    <label><span data-t="apptWhat"></span><input name="title" data-voice></label>
+    <div class="g2"><label><span data-t="date"></span><input type="date" name="d"></label><label><span data-t="apptTime"></span><input type="time" name="time"></label></div>
+    <label><span data-t="apptWho"></span><input name="who" list="clientList" autocomplete="off"></label>
+    <label><span data-t="note"></span><input name="note"></label>
+    <div class="acts"><button class="pri" type="submit" data-t="save"></button><button type="button" class="ghost" data-a="close" data-t="cancel"></button><button type="button" class="ghost danger" id="apptDel" data-a="apptDel" data-t="del"></button></div></div></form></dialog>
 <dialog id="voidDlg"><form id="voidForm" autocomplete="off">
   <div class="dh"><h3 data-t="voidBtn"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
   <div class="db"><p id="voidInfo"></p><p class="meta" data-t="voidHelp"></p><label><span data-t="reason"></span><input name="why" data-voice></label>
@@ -307,9 +324,9 @@ table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-bl
 <div id="undoBar" class="undobar" hidden><span></span><button type="button" class="sm pri" data-a="undo" data-t="undo"></button></div>
 <button type="button" id="fab" data-a="fab" aria-label="Add">+</button>
 <dialog id="fabDlg"><div class="dh"><h3 data-t="newWhat"></h3><button type="button" class="sm ghost" data-a="close" data-t="close"></button></div>
-  <div class="db"><div class="acts fabacts"><button type="button" class="pri" data-a="newClient" data-t="newClient"></button><button type="button" class="pri" data-a="newCase" data-t="newCase"></button><button type="button" data-a="goSearch" data-t="findCase"></button></div></div></dialog>
-<script src="config.js?v=16"></script>
-<script src="i18n.js?v=16"></script>
-<script src="app.js?v=16"></script>
+  <div class="db"><div class="acts fabacts"><button type="button" class="pri" data-a="newClient" data-t="newClient"></button><button type="button" class="pri" data-a="newCase" data-t="newCase"></button><button type="button" class="pri" data-a="appt" data-t="apptAdd"></button><button type="button" data-a="goSearch" data-t="findCase"></button></div></div></dialog>
+<script src="config.js?v=17"></script>
+<script src="i18n.js?v=17"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>

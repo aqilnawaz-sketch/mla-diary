@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v16';const IT=600000;
+let TODAY=iso(new Date());const APPV='v17';const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -18,6 +18,13 @@ const TASKS=['Written statement','Reply to notice','Reply / Para-wise comments',
 const ROLES=['Plaintiff','Defendant','Petitioner','Respondent','Appellant','Complainant','Accused','Applicant','Decree-holder','Judgment-debtor','Other'];
 const LINKS=['Appeal','Revision','Execution','12(2) CPC','Writ / constitutional petition','Connected FIR','Bail matter','Review','Other'];
 const CLOSES=['Decided in favour','Decided against','Partly decided','Dismissed','Withdrawn','Compromised','Transferred','Pending execution','Other'];
+const CSTAT=['Active','Former','Prospective','Conflict-restricted'];
+const RELS=['Husband','Wife','Son','Daughter','Father','Mother','Brother','Sister','Relative','Business partner','Co-accused','Other'];
+const dg=s=>String(s||'').replace(/\D/g,'');
+const fuOpen=c=>{const l=(c.log||[]).filter(x=>x.fu&&!x.fuDone);return l.length?l[l.length-1]:null};
+const appts=()=>settings.appts||[];
+const apptsOn=d=>appts().filter(x=>x.d===d&&!x.done).sort((x,y)=>(x.time||'').localeCompare(y.time||''));
+const apptRow=x=>`<div class="${x.kind==='Personal'?'':'p'}"><b>${esc(x.time||'')}</b> ${esc(x.title||'')} <span class="meta">${esc(t(x.kind==='Personal'?'personal':'appointment'))}${x.cid&&cli(x.cid).name?' · '+esc(cli(x.cid).name):''}${x.note?' · '+esc(x.note):''}</span><span class="sp"></span><button class="sm ghost" type="button" data-a="apptEdit" data-id="${esc(x.id)}">${esc(t('edit'))}</button><button class="sm" type="button" data-a="apptDone" data-id="${esc(x.id)}">${esc(t('done'))}</button></div>`;
 const naOpen=c=>c&&c.nextAct&&c.nextAct.text&&!c.nextAct.done?c.nextAct:null;
 const FIRM={name:'Mian Law Associates',adv:'Mian Aqil Nawaz, Advocate High Court',addr:'Chamber No. 39, District Courts, Kachahery Chowk, Bahawalpur',contact:'0333-3621111 · mianlawassociates1@gmail.com · mlabwp.com.pk'};
 const LIB={pdf:'vendor/jspdf.umd.min.js',at:'vendor/jspdf.plugin.autotable.min.js',xlsx:'vendor/xlsx.full.min.js'};
@@ -56,7 +63,7 @@ function cErr(e){const c=e&&e.code||'';return c.includes('permission')?t('noPerm
 let clients=[],cases=[],fees={},settings={},isAdmin=true,canWrite=true,arc={cases:[],clients:[]};
 function moveArc(){const ca=[...cases,...arc.cases],cl=[...clients,...arc.clients];cases=ca.filter(x=>!x.archived);arc.cases=ca.filter(x=>x.archived);clients=cl.filter(x=>!x.archived);arc.clients=cl.filter(x=>x.archived)}
 let view='diary',curId=null,curClient=null,calM=TODAY.slice(0,7),calDay=TODAY,moneyKind='pay';
-const ui={q:'',f:'Active',cq:'',gq:'',cause:addDays(TODAY,1)};
+const ui={q:'',f:'Active',cq:'',cf:'All',gq:'',cause:addDays(TODAY,1)};
 
 const F=id=>fees[id]||{};
 const live=a=>(a||[]).filter(x=>!x.void);
@@ -287,6 +294,20 @@ function searchAll(q){q=q.toLowerCase().trim();if(!q)return '';const has=s=>Stri
   const cs=cases.filter(c=>[ctitle(c),cname(c),cphone(c),c.caseNo,c.fir,c.opp,c.court,c.judge,c.ps,c.sections].some(has)).slice(0,20);
   if(!cl.length&&!cs.length)return `<div class="empty">${esc(t('noResults'))}</div>`;
   return `<div class="hist">${cl.map(c=>`<div><a href="#" data-a="openClient" data-id="${esc(c.id)}"><b>${esc(c.name||t('untitledClient'))}</b></a> <span class="meta">${esc(t('client'))}${c.phone?' · '+esc(c.phone):''} · ${cases.filter(x=>x.clientId===c.id).length} ${esc(t('cases_n'))}</span></div>`).join('')}${cs.map(c=>`<div><a href="#" data-a="open" data-id="${esc(c.id)}"><b>${esc(ctitle(c))}</b></a> <span class="meta">${esc(cname(c))}${c.caseNo?' · '+esc(c.caseNo):''}${c.court?' · '+esc(c.court):''} · ${esc(t('nextDate'))} ${fd(c.nextDate)}</span></div>`).join('')}</div>`}
+function prepPanel(tml){const tom=addDays(TODAY,1),ap=apptsOn(tom);
+  const nas=cases.filter(c=>c.status==='Active'&&naOpen(c)&&naOpen(c).d&&naOpen(c).d<=tom&&naOpen(c).d>=TODAY);
+  const dls=cases.filter(c=>c.status==='Active').flatMap(c=>(c.deadlines||[]).filter(x=>!x.done&&x.d===tom).map(x=>({c,x})));
+  const fus=clients.filter(c=>fuOpen(c)&&fuOpen(c).fu===tom);
+  const fees2=isAdmin?cases.filter(c=>c.status==='Active').map(c=>({c,ni:nextInst(c.id)})).filter(o=>o.ni&&o.ni.d===tom):[];
+  if(!tml.length&&!ap.length&&!nas.length&&!dls.length&&!fus.length&&!fees2.length)return `<h2 class="sec">${esc(t('prepTitle'))}</h2><div class="empty">${esc(t('prepNone'))}</div>`;
+  const docsN=tml.reduce((s,c)=>s+(c.docs||[]).length,0);
+  return `<div class="panel"><h3>${esc(t('prepTitle'))} · ${fd(tom)}</h3>
+  ${tml.length?`<p class="meta">📁 ${esc(t('prepCarry'))}: <b>${tml.length}</b>${docsN?' · '+docsN+' '+esc(t('bkDocs')):''}</p><div class="hist">${tml.sort((a,b)=>(a.court||'').localeCompare(b.court||'')).map(c=>{const w=waHear(c),na=naOpen(c);return `<div><a href="#" data-a="open" data-id="${esc(c.id)}"><b>${esc(ctitle(c))}</b></a> <span class="meta">${esc(cname(c))}${c.court?' · '+esc(c.court):''}${c.stage?' · '+esc(c.stage):''}</span>${na?`<br><span style="color:var(--gold2)">➜ ${esc(na.text)}</span>`:''}<span class="sp"></span>${w?`<a class="btn sm ghost" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('waRem'))}</a>`:''}</div>`}).join('')}</div>`:''}
+  ${nas.length||dls.length?`<h4>${esc(t('prepTodo'))}</h4><div class="hist">${nas.map(c=>`<div>➜ ${esc(naOpen(c).text)} <span class="meta">${esc(naOpen(c).who==='Munshi'?t('munshi'):t('advocate'))} · ${esc(ctitle(c))}</span></div>`).join('')}${dls.map(o=>`<div class="x"><b>${esc(o.x.label)}</b> · ${esc(ctitle(o.c))}</div>`).join('')}</div>`:''}
+  ${ap.length?`<h4>${esc(t('appointments'))}</h4><div class="hist">${ap.map(apptRow).join('')}</div>`:''}
+  ${fus.length?`<h4>${esc(t('prepContact'))}</h4><div class="hist">${fus.map(c=>`<div><a href="#" data-a="openClient" data-id="${esc(c.id)}">${esc(c.name||'')}</a> <span class="meta">${esc(fuOpen(c).note||'')}</span></div>`).join('')}</div>`:''}
+  ${fees2.length?`<h4>${esc(t('feesDueTom'))}</h4><div class="hist">${fees2.map(o=>`<div><b>${rs(o.ni.due)}</b> · ${esc(cname(o.c))} · ${esc(ctitle(o.c))}</div>`).join('')}</div>`:''}
+  ${tml.length?`<div class="acts" style="margin-top:10px"><button class="sm" type="button" data-a="causePdf">${esc(t('causeList'))}</button><button class="sm" type="button" data-a="roundSheet">${esc(t('roundSheet'))}</button><button class="sm" type="button" data-a="waAll">${esc(t('waAll'))}</button></div>`:''}</div>`}
 function vHome(){
   const act=cases.filter(c=>c.status==='Active'),tom=addDays(TODAY,1),wk=addDays(TODAY,7),dd=new Date(TODAY+'T00:00');
   const tl=act.filter(c=>c.nextDate===TODAY).sort((a,b)=>(a.court||'').localeCompare(b.court||'')),tml=act.filter(c=>c.nextDate===tom);
@@ -304,8 +325,11 @@ function vHome(){
   h+=`<div class="chips">${card(tl.length,t('todayH'),'diary')}${card(tml.length,t('tomorrowH'),'diary')}${card(pend.length,t('filingsWeek'),'diary',odl.length)}${isAdmin?card(fdue.length,t('feesDueWeek'),'fee',fdue.some(o=>o.ni.d<TODAY)):''}</div>`;
   h+=`<div class="acts" style="margin:-6px 0 18px"><button type="button" data-a="newClient">${esc(t('newClient'))}</button><button type="button" data-a="newCase">${esc(t('newCase'))}</button><button type="button" class="ghost" data-a="causePdf">${esc(t('causeList'))}</button><button type="button" class="ghost" data-a="roundSheet">${esc(t('roundSheet'))}</button></div>`;
   if(noRes.length||odl.length||naOver.length||limChk.length)h+=`<div class="panel" style="border-color:var(--tape)"><h3 class="danger">${esc(t('needAttention'))}</h3><div class="hist">${limChk.map(c=>`<div class="x"><b>${esc(t('limCheck'))}</b> · <a href="#" data-a="open" data-id="${esc(c.id)}">${esc(ctitle(c))}</a> <span class="meta">${esc(c.closeReason||t('st_Decided'))} · ${fd(c.closeDate)}</span><span class="sp"></span><button class="sm" type="button" data-a="limEdit" data-id="${esc(c.id)}">${esc(t('limSet'))}</button></div>`).join('')}${naOver.map(o=>`<div class="x"><b>${esc(t('nextAction'))}</b> · ${esc(o.na.text)} · ${fd(o.na.d)} · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm" type="button" data-a="naDone" data-id="${esc(o.c.id)}">${esc(t('done'))}</button></div>`).join('')}${odl.map(o=>`<div class="x"><b>${esc(t('overdueDl'))}</b> ${esc(o.x.label||'')} · ${fd(o.x.d)} · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm" type="button" data-a="dlDone" data-id="${esc(o.c.id)}" data-i="${o.i}">${esc(t('done'))}</button></div>`).join('')}${noRes.sort((a,b)=>a.nextDate<b.nextDate?-1:1).map(c=>`<div><b>${esc(t('noResult'))}</b> · ${fd(c.nextDate)} · <a href="#" data-a="open" data-id="${esc(c.id)}">${esc(ctitle(c))}</a> <span class="meta">${esc(cname(c))}</span><span class="sp"></span><button class="sm pri" type="button" data-a="hear" data-id="${esc(c.id)}">${esc(t('update'))}</button></div>`).join('')}</div></div>`;
+  const apT=apptsOn(TODAY),fus=clients.map(c=>({c,f:fuOpen(c)})).filter(o=>o.f&&o.f.fu<=TODAY);
+  if(apT.length)h+=`<h2 class="sec">${esc(t('apptToday'))}</h2><div class="hist">${apT.map(apptRow).join('')}</div>`;
+  if(fus.length)h+=`<h2 class="sec">${esc(t('followUps'))}</h2><div class="hist">${fus.map(o=>`<div class="${o.f.fu<TODAY?'x':''}"><a href="#" data-a="openClient" data-id="${esc(o.c.id)}"><b>${esc(o.c.name||t('untitledClient'))}</b></a> · ${fd(o.f.fu)}${o.f.note?' · <span class="meta">'+esc(o.f.note)+'</span>':''}<span class="sp"></span>${o.c.phone?`<a class="btn sm ghost" href="tel:${esc(dg(o.c.phone))}">${esc(t('call'))}</a>`:''}<button class="sm" type="button" data-a="logFor" data-id="${esc(o.c.id)}">${esc(t('logAdd'))}</button></div>`).join('')}</div>`;
   h+=`<h2 class="sec">${esc(t('todayH'))}</h2>`+(tl.length?`<div class="rows">${tl.map(c=>rowHTML(c)).join('')}</div>`:`<div class="empty">${esc(t('nothingToday'))}</div>`);
-  if(tml.length)h+=`<h2 class="sec">${esc(t('tomorrowH'))}</h2><div class="rows">${tml.map(c=>rowHTML(c)).join('')}</div>`;
+  h+=prepPanel(tml);
   const nw=nas.filter(o=>!o.na.d||o.na.d>=TODAY).slice(0,15);if(nw.length)h+=`<h2 class="sec">${esc(t('nextActions'))}</h2><div class="hist">${nw.map(o=>`<div><b>${esc(o.na.text)}</b> <span class="meta">${esc(o.na.who==='Munshi'?t('munshi'):t('advocate'))}${o.na.d?' · '+fd(o.na.d):''}</span> · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm ghost" type="button" data-a="naDone" data-id="${esc(o.c.id)}">${esc(t('done'))}</button></div>`).join('')}</div>`;
   const pw=pend.filter(o=>o.x.d>=TODAY);if(pw.length)h+=`<h2 class="sec">${esc(t('filingsWeek'))}</h2><div class="hist">${pw.map(o=>`<div><b>${fd(o.x.d)}</b> ${esc(o.x.label||'')} · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(o.c.id)}" data-i="${o.i}">${esc(t('done'))}</button></div>`).join('')}</div>`;
   if(fdue.length)h+=`<h2 class="sec">${esc(t('feesDueWeek'))}</h2><div class="hist">${fdue.map(o=>`<div class="${o.ni.d<TODAY?'x':''}"><b>${rs(o.ni.due)}</b> · ${fd(o.ni.d)} · <a href="#" data-a="openClient" data-id="${esc(o.c.clientId||'')}">${esc(cname(o.c)||t('untitledClient'))}</a> · ${esc(ctitle(o.c))}<span class="sp"></span><button class="sm" type="button" data-a="pay" data-id="${esc(o.c.id)}">${esc(t('addFee'))}</button></div>`).join('')}</div>`;
@@ -315,6 +339,8 @@ function vDiary(){
   const act=cases.filter(c=>c.status==='Active'),tom=addDays(TODAY,1),wk=addDays(TODAY,7);
   const past=act.filter(c=>c.nextDate&&c.nextDate<TODAY),dls=upcomingDl();
   let h='';
+  {const ap=appts().filter(x=>!x.done&&x.d>=TODAY&&x.d<=wk).sort((x,y)=>(x.d+(x.time||''))<(y.d+(y.time||''))?-1:1),apo=appts().filter(x=>!x.done&&x.d<TODAY);
+   h+=`<div class="panel"><h3>${esc(t('appointments'))}</h3>${ap.length||apo.length?`<div class="hist">${apo.map(x=>`<div class="x">${fd(x.d)} · ${apptRow(x).replace(/^<div[^>]*>/,'').replace(/<\/div>$/,'')}</div>`).join('')}${ap.map(x=>`<div>${fd(x.d)} · ${apptRow(x).replace(/^<div[^>]*>/,'').replace(/<\/div>$/,'')}</div>`).join('')}</div>`:`<p class="meta">${esc(t('noAppt'))}</p>`}<button class="sm" type="button" data-a="appt">${esc(t('apptAdd'))}</button></div>`}
   const tomL=act.filter(c=>c.nextDate===tom),ds=dueSoon();
   const fd2=isAdmin?cases.filter(c=>c.status==='Active').map(c=>({c,ni:nextInst(c.id)})).filter(o=>o.ni&&addDays(o.ni.d,-(+o.ni.rem||0))<=TODAY):[];
   if(tomL.length||ds.length||fd2.length)h+=`<div class="panel"><h3>${esc(t('reminders'))}</h3><div class="hist">${fd2.map(o=>`<div class="${daysLeft(o.ni.d)<=0?'x':''}"><b>${esc(t('feeDueOn'))}</b> ${rs(o.ni.due)} — ${esc(cname(o.c))} · ${esc(ctitle(o.c))} · ${dl(o.ni.d)}<span class="sp"></span>${o.c.clientId&&cphone(o.c)?`<button class="sm" type="button" data-a="feeRem" data-id="${esc(o.c.clientId)}">${esc(t('feeReminder'))}</button>`:''}</div>`).join('')}${tomL.length?`<div><b>${esc(t('tomorrow'))}:</b> ${tomL.length} ${esc(t('cases_n'))} — ${tomL.slice(0,4).map(c=>esc(ctitle(c))).join(', ')}${tomL.length>4?'…':''}<span class="sp"></span><button class="sm" type="button" data-a="waAll">${esc(t('waAll'))}</button></div>`:''}${ds.map(o=>{const n=daysLeft(o.x.d);return `<div class="${n<=0?'x':''}"><b>${esc(o.x.label||t('deadline'))}</b> — ${esc(ctitle(o.c))} · ${n<0?esc(t('overdue')):n===0?esc(t('today')):n+' '+esc(t('daysLeft'))} (${fd(o.x.d)})<span class="sp"></span><button class="sm ghost" type="button" data-a="dlDone" data-id="${esc(o.c.id)}" data-i="${o.i}">${esc(t('done'))}</button></div>`}).join('')}</div></div>`;
@@ -334,12 +360,13 @@ function vCal(){
   const [y,m]=calM.split('-').map(Number),first=new Date(y,m-1,1),start=new Date(y,m-1,1-first.getDay());
   const act=cases.filter(c=>c.status==='Active');
   const cnt={};act.forEach(c=>{if(c.nextDate)cnt[c.nextDate]=(cnt[c.nextDate]||0)+1});
-  const dlc={};act.forEach(c=>(c.deadlines||[]).forEach(x=>{if(!x.done&&x.d)dlc[x.d]=(dlc[x.d]||0)+1}));
+  const dlc={};act.forEach(c=>(c.deadlines||[]).forEach(x=>{if(!x.done&&x.d)dlc[x.d]=(dlc[x.d]||0)+1}));appts().forEach(x=>{if(!x.done&&x.d)dlc[x.d]=(dlc[x.d]||0)+1});
   let h=`<div class="calh"><button class="sm" type="button" data-a="calPrev" aria-label="${esc(t('prev'))}">‹</button><h2>${MON[m-1]} ${y}</h2><button class="sm" type="button" data-a="calNext" aria-label="${esc(t('next'))}">›</button></div><div class="cal">${WD.map(w=>`<div class="wd">${w}</div>`).join('')}`;
   for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);const s=iso(d);
     h+=`<button type="button" data-a="calDay" data-d="${s}" class="${d.getMonth()!==m-1?'out':''} ${s===TODAY?'td':''} ${s===calDay?'sel':''}">${d.getDate()}${cnt[s]?`<i>${cnt[s]}</i>`:''}${dlc[s]?`<u>● ${dlc[s]}</u>`:''}</button>`}
   h+=`</div><h2 class="sec">${WD[new Date(calDay+'T00:00').getDay()]}, ${fd(calDay)}</h2>`;
   const list=act.filter(c=>c.nextDate===calDay),dl=act.flatMap(c=>(c.deadlines||[]).filter(x=>!x.done&&x.d===calDay).map(x=>({c,x})));
+  {const ap=apptsOn(calDay);h+=(ap.length?`<div class="hist" style="margin-bottom:12px">${ap.map(apptRow).join('')}</div>`:'')+`<div class="acts" style="margin-bottom:12px"><button class="sm" type="button" data-a="appt">${esc(t('apptAdd'))}</button></div>`}
   h+=dl.map(o=>`<div class="note">${esc(t('deadline'))}: ${esc(o.x.label||'')} — ${esc(ctitle(o.c))}</div>`).join('');
   return h+(list.length?`<div class="rows">${list.map(c=>rowHTML(c)).join('')}</div>`:`<div class="empty">${esc(t('nothingDay'))}</div>`);
 }
@@ -353,12 +380,12 @@ function vCases(){
 }
 function vClients(){
   const q=ui.cq.toLowerCase();
-  const list=clients.filter(c=>!q||[c.name,c.phone,c.cnic,c.address,c.ref].join(' ').toLowerCase().includes(q)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  let h=`<div class="bar"><input id="cq" type="search" placeholder="${esc(t('search'))}" value="${esc(ui.cq)}"><button type="button" class="sm pri" data-a="newClient">${esc(t('newClient'))}</button></div>`;
+  const list=clients.filter(c=>(ui.cf==='All'||(c.cstatus||'Active')===ui.cf)&&(!q||[c.name,c.phone,c.cnic,c.address,c.ref].join(' ').toLowerCase().includes(q))).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  let h=`<div class="bar"><input id="cq" type="search" placeholder="${esc(t('search'))}" value="${esc(ui.cq)}"><select id="cf">${['All',...CSTAT].map(s=>`<option value="${s}" ${s===ui.cf?'selected':''}>${esc(s==='All'?t('all'):t('cs_'+s))}</option>`).join('')}</select><button type="button" class="sm pri" data-a="newClient">${esc(t('newClient'))}</button></div>`;
   if(!list.length)return h+`<div class="empty">${esc(clients.length?t('noMatch'):t('noClients'))}<p class="meta">${esc(t('clientsHow'))}</p></div>`;
   return h+`<div class="rows">${list.map(c=>{const cs=cases.filter(x=>x.clientId===c.id),act=cs.filter(x=>x.status==='Active'),nx=act.map(x=>x.nextDate).filter(d=>d&&d>=TODAY).sort()[0],b=isAdmin?cs.reduce((a,x)=>a+bal(x.id),0):0,types=[...new Set(cs.map(x=>x.type||'Other'))];
     return `<div class="row"><div class="main" data-a="openClient" data-id="${esc(c.id)}"><h3>${esc(c.name||t('untitledClient'))}</h3><div class="meta">${esc(c.phone||'')}${c.phone&&cs.length?' · ':''}${cs.length?cs.length+' '+esc(t('cases_n')):''}</div>
-    <div class="tags">${types.map(ty=>`<span class="tag">${esc(ty)}</span>`).join('')}${nx?`<span class="tag">${esc(t('nextHearing'))}: ${fd(nx)}</span>`:''}${isAdmin&&b?`<span class="tag due">${esc(t('remaining'))} ${rs(b)}</span>`:''}</div></div></div>`}).join('')}</div>`;
+    <div class="tags">${c.cstatus&&c.cstatus!=='Active'?`<span class="tag ${c.cstatus==='Conflict-restricted'?'due':''}">${esc(t('cs_'+c.cstatus))}</span>`:''}${fuOpen(c)&&fuOpen(c).fu<=TODAY?`<span class="tag due">${esc(t('followUp'))} ${fd(fuOpen(c).fu)}</span>`:''}${types.map(ty=>`<span class="tag">${esc(ty)}</span>`).join('')}${nx?`<span class="tag">${esc(t('nextHearing'))}: ${fd(nx)}</span>`:''}${isAdmin&&b?`<span class="tag due">${esc(t('remaining'))} ${rs(b)}</span>`:''}</div></div></div>`}).join('')}</div>`;
 }
 function allPays(){return cases.flatMap(c=>(F(c.id).payments||[]).map((p,i)=>({...p,c,i})).filter(p=>!p.void))}
 function vFee(){
@@ -487,11 +514,13 @@ async function findOrMakeClient(name,phone){
   name=name.trim();phone=phone.trim();if(!name&&!phone)return '';
   let cl=clients.find(c=>name&&(c.name||'').trim().toLowerCase()===name.toLowerCase())||(!name&&clients.find(c=>phone&&c.phone===phone));
   if(cl){if(phone&&cl.phone!==phone)await put('clients',cl.id,{...strip(cl),phone});return cl.id}
+  const pd=dg(phone).slice(-10),dupc=pd.length>=10&&clients.find(c=>dg(c.phone).slice(-10)===pd);if(dupc)setTimeout(()=>toast(t('phoneUsedBy')+' '+(dupc.name||'')),900);
   const id=newId('clients');return (await put('clients',id,{name,phone,created:new Date().toISOString()}))?id:'';
 }
 let CONFLICT_OK=false;
 const nm=s=>String(s||'').toLowerCase().replace(/[^a-z\u0600-\u06ff ]/g,' ').replace(/\s+/g,' ').trim();
 function conflicts(client,opp,selfId){const out=[];const c=nm(client),o=nm(opp);
+  for(const x of clients.filter(x=>x.cstatus==='Conflict-restricted'))if(c&&nm(x.name)===c||o&&nm(x.name)===o)out.push(t('cfRestricted')+': '+x.name);
   for(const x of [...cases,...arc.cases]){if(x.id===selfId)continue;const xo=nm(x.opp),xc=nm(cname(x));
     if(c.length>3&&xo&&(xo.includes(c)||c.includes(xo)&&xo.length>3))out.push(t('cfClientOpp')+': '+ctitle(x));
     if(o.length>3&&xc&&(xc.includes(o)||o.includes(xc)&&xc.length>3))out.push(t('cfOppClient')+': '+ctitle(x)+' ('+cname(x)+')')}return [...new Set(out)]}
@@ -511,12 +540,26 @@ E($('#caseForm')).addEventListener('submit',async e=>{e.preventDefault();
   $('#caseDlg').close();toast(t('saved'));if($('#detDlg').open)detail(id);
 });
 E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curClient||newId('clients');
-  const d={...(curClient?strip(clients.find(c=>c.id===curClient)):{created:new Date().toISOString()})};for(const k of ['name','phone','cnic','ref','address','email','notes'])d[k]=f[k].value.trim();d.noread=f.noread.checked;
+  const d={...(curClient?strip(clients.find(c=>c.id===curClient)):{created:new Date().toISOString()})};for(const k of ['name','phone','cnic','ref','address','email','notes'])d[k]=f[k].value.trim();d.noread=f.noread.checked;d.cstatus=f.cstatus.value;
+  d.related=$$('#relRows .ptrow').map(r=>({rel:r.querySelector('[data-f=rel]').value,id:r.querySelector('[data-f=cid]').value})).filter(r=>r.id);
+  const ph=dg(d.phone).slice(-10),cn=dg(d.cnic);const dup=clients.find(x=>x.id!==id&&((ph.length>=10&&dg(x.phone).slice(-10)===ph)||(cn.length>=13&&dg(x.cnic)===cn)));
+  if(dup&&!DUP_OK){DUPID=dup.id;$('#dupInfo').textContent=(dup.name||t('untitledClient'))+(dup.phone?' · '+dup.phone:'')+(dup.cnic?' · '+dup.cnic:'')+' — '+cases.filter(x=>x.clientId===dup.id).length+' '+t('cases_n');$('#dupDlg').showModal();return}DUP_OK=false;
   if(await put('clients',id,d)){curClient=id;toast(t('saved'));clientCases(id)}
 });
+const relRow=(r,self)=>`<div class="ptrow"><select data-f="rel">${RELS.map(x=>`<option ${x===r.rel?'selected':''}>${esc(x)}</option>`).join('')}</select><select data-f="cid"><option value=""></option>${clients.filter(x=>x.id!==self).sort((x,y)=>(x.name||'').localeCompare(y.name||'')).map(x=>`<option value="${esc(x.id)}" ${x.id===r.id?'selected':''}>${esc(x.name||t('untitledClient'))}${x.phone?' · '+esc(x.phone):''}</option>`).join('')}</select><button class="sm ghost danger" type="button" data-a="rmPt" aria-label="Remove">✕</button></div>`;
+let DUP_OK=false,DUPID='';
+E($('#logForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),cl=clients.find(x=>x.id===curClient);if(!cl)return;
+  const d=strip(cl);d.log=[...(d.log||[]).map(x=>x.fu&&!x.fuDone?{...x,fuDone:true}:x),{d:TODAY,at:new Date().toISOString(),type:f.type.value,note:f.note.value.trim(),fu:f.fu.value}];
+  if(await put('clients',cl.id,d)){$('#logDlg').close();toast(t('saved'));clientCases(cl.id)}});
+E($('#apptForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(!f.title.value.trim()){f.title.focus();return}if(!f.d.value){f.d.focus();return}
+  const nmv=f.who.value.trim().toLowerCase(),cl=nmv&&clients.find(c=>(c.name||'').trim().toLowerCase()===nmv);
+  const x={id:f.dataset.id||'a'+newId(),kind:f.kind.value,title:f.title.value.trim(),d:f.d.value,time:f.time.value,cid:cl?cl.id:'',note:f.note.value.trim()+(nmv&&!cl?(f.note.value.trim()?' · ':'')+f.who.value.trim():''),done:false};
+  settings.appts=[...appts().filter(z=>z.id!==x.id),x];await persist();$('#apptDlg').close();render();toast(t('saved'))});
 function openClient(id){const f=E($('#clientForm'));f.reset();curClient=id||null;const c=id?clients.find(x=>x.id===id):null;
   $('#clTitle').textContent=c?(c.name||t('untitledClient')):t('clientNew');
-  if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';f.noread.checked=!!(c&&c.noread);addMics();
+  if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';f.noread.checked=!!(c&&c.noread);
+  f.cstatus.innerHTML=CSTAT.map(s=>`<option value="${s}" ${s===((c&&c.cstatus)||'Active')?'selected':''}>${esc(t('cs_'+s))}</option>`).join('');
+  $('#relRows').innerHTML=(c&&c.related||[]).map(r=>relRow(r,id)).join('');addMics();
   $('#clEdit').open=!c;
   $('#delClientBtn').style.display=c&&isAdmin?'':'none';delete $('#delClientBtn').dataset.sure;$('#delClientBtn').textContent=t('toArchive');
   clientCases(id);if(!$('#clientDlg').open)$('#clientDlg').showModal()}
@@ -532,6 +575,12 @@ function caseCard(x){const ni=isAdmin?nextInst(x.id):null,dls=(x.deadlines||[]).
   <div class="ln">${ni?`<span>${esc(t('feeDueOn'))}: <b>${rs(ni.due)}</b> · ${fd(ni.d)} (${dl(ni.d)}) · ${esc(t('remindClient'))}: ${+ni.rem||0} ${esc(t('days'))}</span>`:`<span class="meta">${esc(t('noFeeDate'))}</span>`}</div>`:''}
   ${dls.map(d=>`<div class="ln"><span><b>${esc(d.label)}</b> · ${fd(d.d)} (${dl(d.d)}) · ${esc(t('remindBefore'))}: ${d.rem===0?0:(+d.rem||2)} ${esc(t('days'))}</span></div>`).join('')}
   <div class="acts"><button class="sm" type="button" data-a="hear" data-id="${esc(x.id)}">${esc(t('update'))}</button><button class="sm" type="button" data-a="task" data-id="${esc(x.id)}">${esc(t('addTask'))}</button>${isAdmin?`<button class="sm" type="button" data-a="pay" data-id="${esc(x.id)}">${esc(t('addFee'))}</button><button class="sm" type="button" data-a="inst" data-id="${esc(x.id)}">${esc(t('feeDueDate'))}</button>`:''}</div></div>`}
+function clExtra(cl,id){
+  const st=cl.cstatus&&cl.cstatus!=='Active'?`<span class="tag ${cl.cstatus==='Conflict-restricted'?'due':''}">${esc(t('cs_'+cl.cstatus))}</span> `:'';
+  const own=(cl.related||[]).map(r=>({c:cli(r.id),id:r.id,lab:r.rel})).filter(x=>x.c.name),back=clients.filter(x=>(x.related||[]).some(r=>r.id===id)&&!(cl.related||[]).some(r=>r.id===x.id)).map(x=>({c:x,id:x.id,lab:t('linked')}));
+  const fam=[...own,...back];const log=(cl.log||[]).slice().reverse().slice(0,8),fu=fuOpen(cl);
+  return `<div style="margin-top:10px">${st}${fam.length?`<span class="meta">${esc(t('family'))}: </span>${fam.map(x=>`<a href="#" data-a="openClient" data-id="${esc(x.id)}">${esc(x.c.name)}</a> <span class="meta">(${esc(x.lab)})</span>`).join(' · ')}`:''}</div>
+  <div class="grp"><h5>${esc(t('contactLog'))}${fu?` · <span class="${fu.fu<=TODAY?'danger':''}">${esc(t('followUp'))} ${fd(fu.fu)}</span>`:''}</h5><div class="hist">${log.map(x=>`<div><b>${fd(x.d)}</b> ${esc(x.type)}${x.note?' — '+esc(x.note):''}${x.fu?` <span class="meta">→ ${esc(t('followUp'))} ${fd(x.fu)}${x.fuDone?' ✓':''}</span>`:''}</div>`).join('')||`<div class="meta">${esc(t('noLog'))}</div>`}</div><button class="sm" type="button" data-a="logAdd">${esc(t('logAdd'))}</button></div>`}
 function clientCases(id){const o=MASK;MASK=!!(settings.priv&&isAdmin);try{return clientCases_(id)}finally{MASK=o}}
 function clientCases_(id){const cs=id?cases.filter(x=>x.clientId===id):[];if(!id){$('#clCases').innerHTML='';return}
   const cl=cli(id),groups={};cs.sort((a,b)=>(a.status==='Active'?0:1)-(b.status==='Active'?0:1)).forEach(x=>{(groups[x.type||'Other']=groups[x.type||'Other']||[]).push(x)});
@@ -539,6 +588,7 @@ function clientCases_(id){const cs=id?cases.filter(x=>x.clientId===id):[];if(!id
   $('#clCases').innerHTML=`<div class="cl-top">${cl.phone?`<a class="btn sm" href="tel:${esc(String(cl.phone).replace(/[^\d+]/g,''))}">${esc(t('call'))} ${esc(cl.phone)}</a>`:''}${n?`<a class="btn sm" href="https://wa.me/${n}" target="_blank" rel="noopener">${esc(t('whatsapp'))}</a>`:''}${w?`<a class="btn sm" href="${esc(w)}" target="_blank" rel="noopener">${esc(t('feeReminder'))}</a>`:''}<button type="button" class="sm" data-a="editClient">${esc(t('edit'))}</button><button type="button" class="sm pri" data-a="newCase">${esc(t('newCase'))}</button></div>
   ${[cl.cnic?t('cnic')+': '+cl.cnic:'',cl.address?t('address')+': '+cl.address:'',cl.ref?t('referred')+': '+cl.ref:'',cl.email||''].filter(Boolean).length?`<p class="meta" style="margin:8px 0 0">${[cl.cnic?t('cnic')+': '+cl.cnic:'',cl.address?t('address')+': '+cl.address:'',cl.ref?t('referred')+': '+cl.ref:'',cl.email||''].filter(Boolean).map(esc).join(' · ')}</p>`:''}${cl.notes?`<p class="meta" style="margin:4px 0 0">${esc(cl.notes)}</p>`:''}
   ${isAdmin&&cs.length?`<div class="sum" style="margin-top:10px"><span>${esc(t('agreed'))} <b>${rs(tot)}</b></span><span>${esc(t('received'))} <b>${rs(rec)}</b></span><span>${esc(t('balance'))} <b style="color:var(--tape)">${rs(b)}</b></span></div>`:''}
+  ${clExtra(cl,id)}
   ${Object.entries(groups).map(([ty,list])=>`<div class="grp"><h5>${esc(ty)} · ${list.length}</h5>${list.map(caseCard).join('')}</div>`).join('')||`<p class="meta">${esc(t('noCasesYet'))}</p>`}`}
 
 
@@ -605,6 +655,14 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'task':{curId=id;const c=byId(id),f=E($('#taskForm'));f.reset();f.rem.value=2;$('#tkCase').textContent=ctitle(c)+' · '+cname(c);fillPicks($('#taskDlg'));$('#taskDlg').showModal();break}
   case 'feeRem':{const w=feeRemLink(id);if(w)window.open(w,'_blank');else toast(t('noPhone'));break}
   case 'limEdit':{CFMORE=true;openCase(byId(id));setTimeout(()=>{const n=E($('#caseForm')).limitD;if(n){try{n.scrollIntoView({block:'center'})}catch(x){}n.focus()}},60);break}
+  case 'addRel':$('#relRows').insertAdjacentHTML('beforeend',relRow({rel:'Relative'},curClient));break;
+  case 'dupOpen':$('#dupDlg').close();openClient(DUPID);break;
+  case 'dupSave':DUP_OK=true;$('#dupDlg').close();$('#clientForm').requestSubmit();break;
+  case 'logAdd':{if(!curClient)break;const f=E($('#logForm'));f.reset();$('#logWho').textContent=cli(curClient).name||'';fillPicks($('#logDlg'));addMics();$('#logDlg').showModal();break}
+  case 'logFor':{openClient(id);const f=E($('#logForm'));f.reset();$('#logWho').textContent=cli(id).name||'';fillPicks($('#logDlg'));addMics();$('#logDlg').showModal();break}
+  case 'appt':case 'apptEdit':{const x=a==='apptEdit'?appts().find(z=>z.id===id):null;const f=E($('#apptForm'));f.reset();f.dataset.id=x?x.id:'';f.kind.value=x?x.kind:'Appointment';f.title.value=x?x.title:'';f.d.value=x?x.d:(view==='calendar'?calDay:TODAY);f.time.value=x?x.time||'':'';f.who.value=x&&x.cid?cli(x.cid).name||'':'';f.note.value=x?x.note||'':'';$('#apptDel').style.display=x?'':'none';addMics();$('#apptDlg').showModal();break}
+  case 'apptDone':{const before=clone(appts());settings.appts=appts().map(z=>z.id===id?{...z,done:true}:z);await persist();render();undoable(t('done'),async()=>{settings.appts=before;await persist();render()});break}
+  case 'apptDel':{const fid=E($('#apptForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.appts=appts().filter(z=>z.id!==fid);await persist();$('#apptDlg').close();render();toast(t('deleted'));break}
   case 'addPt':$('#ptRows').insertAdjacentHTML('beforeend',ptRow({role:'Respondent'}));break;
   case 'rmPt':el.closest('.ptrow').remove();break;
   case 'naEdit':{CFMORE=true;openCase(byId(id));setTimeout(()=>{const n=E($('#caseForm')).naText;if(n){try{n.scrollIntoView({block:'center'})}catch(x){}n.focus()}},60);break}
@@ -650,7 +708,7 @@ async function viewDoc(i){const c=byId(curId);const doc=c&&(c.docs||[])[i];if(!d
   try{const f=await fileBytes(doc);if(!f){toast(t('fileMissing'));return}const blob=new Blob([f.bytes],{type:f.type});openBlob(blob,doc.name)}catch(x){toast(CLOUD?t('needOnline'):'Could not open file')}}
 function openBlob(blob,name){ext();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';if(!/^image\/|pdf/.test(blob.type))a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},120000)}
 document.addEventListener('input',e=>{const id=e.target.id;if(id==='q'||id==='cq'||id==='gq'){ui[id]=e.target.value;const p=e.target.selectionStart;render();const n=$('#'+id);n.focus();try{n.setSelectionRange(p,p)}catch(x){}}});
-document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.f==='task'){const o=e.target.parentElement.querySelector('[data-f=label]');o.style.display=e.target.value==='Other'?'':'none'}if(e.target.id==='f'){ui.f=e.target.value;render()}if(e.target.id==='causeD')ui.cause=e.target.value});
+document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.f==='task'){const o=e.target.parentElement.querySelector('[data-f=label]');o.style.display=e.target.value==='Other'?'':'none'}if(e.target.id==='f'){ui.f=e.target.value;render()}if(e.target.id==='cf'){ui.cf=e.target.value;render()}if(e.target.id==='causeD')ui.cause=e.target.value});
 
 /* ---------- backup / restore ---------- */
 const pack=o=>({iv:b64(o.iv),ct:b64(o.ct),...(o.type?{type:o.type}:{})}),unpack=o=>({iv:unb64(o.iv),ct:unb64(o.ct),...(o.type?{type:o.type}:{})});
