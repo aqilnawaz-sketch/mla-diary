@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v19';const IT=600000;
+let TODAY=iso(new Date());const APPV='v20';const num=v=>{const s=String(v??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\d.]/g,'');return +s||0};const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -570,7 +570,7 @@ E($('#caseForm')).addEventListener('submit',async e=>{e.preventDefault();
   if(f.limitD.value&&!d.deadlines.some(x=>x.d===f.limitD.value&&/^Limitation/.test(x.label)))d.deadlines.push({label:'Limitation'+(d.closeReason?' ('+d.closeReason+')':'')+' — verify',d:f.limitD.value,rem:7,done:false});
   d.clientId=await findOrMakeClient(f.client.value,f.phone.value);
   if(!(await put('cases',id,d)))return;
-  if(isAdmin){const fee=+f.fee.value||0,fz=strip(F(id));if(fee!==(+fz.fee||0)||!fees[id]&&fee){if(fees[id]&&fee!==(+fz.fee||0))fz.feeLog=[...(fz.feeLog||[]),{d:TODAY,from:+fz.fee||0,to:fee}];await put('fees',id,{...fz,fee})}}
+  if(isAdmin){const fee=num(f.fee.value),fz=strip(F(id));if(fee!==(+fz.fee||0)||!fees[id]&&fee){if(fees[id]&&fee!==(+fz.fee||0))fz.feeLog=[...(fz.feeLog||[]),{d:TODAY,from:+fz.fee||0,to:fee}];await put('fees',id,{...fz,fee})}}
   $('#caseDlg').close();toast(t('saved'));if($('#detDlg').open)detail(id);
 });
 E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curClient||newId('clients');
@@ -653,7 +653,7 @@ function clientCases_(id){const cs=id?cases.filter(x=>x.clientId===id):[];if(!id
   ${Object.entries(groups).map(([ty,list])=>`<div class="grp"><h5>${esc(ty)} · ${list.length}</h5>${list.map(caseCard).join('')}</div>`).join('')||`<p class="meta">${esc(t('noCasesYet'))}</p>`}`}
 
 
-E($('#taskForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;if(!f.d.value){toast(t('warnNeedDate'));f.d.focus();return}
+E($('#taskForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;if(!f.d.value)setTimeout(()=>toast(t('warnNoDate')),1500);
   const d=strip(c);d.deadlines=[...(d.deadlines||[]),{label:f.label.value.trim()||'Task',d:f.d.value,rem:Math.max(0,+f.rem.value||0),done:false}];if(await put('cases',c.id,d)){$('#taskDlg').close();toast(t('saved'))}});
 E($('#hearForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),c=byId(curId);if(!c)return;
   const before=clone(c),d=strip(c);d.hearings=[...(d.hearings||[]),{d:f.d.value||TODAY,note:f.note.value.trim(),order:f.order.value.trim(),next:f.next.value}];
@@ -669,13 +669,13 @@ function setKind(kind){moneyKind=kind;const f=E($('#moneyForm'));
   f.d.value=kind==='inst'?addDays(TODAY,30):TODAY}
 function openMoney(kind,id){curId=id;const c=byId(id),f=E($('#moneyForm'));f.reset();f.bill.checked=true;setKind(kind);fillPicks($('#moneyDlg'));
   $('#mCase').textContent=ctitle(c)+' · '+(credit(id)?t('creditBal')+' '+rs(credit(id)):t('balance')+' '+rs(bal(id)));addMics();$('#moneyDlg').showModal()}
-E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=+f.amt.value||0;if(!amt){toast(t('warnNeedAmt'));f.amt.focus();return}
+E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=num(f.amt.value);if(!amt)setTimeout(()=>toast(t('warnNoAmt')),1500);
   const fz=strip(F(id));const item={d:f.d.value||TODAY,amt,note:f.note.value.trim()};let key='payments';
-  if(moneyKind==='pay'){item.mode=f.mode.value;item.rno=nextRno(item.d.slice(0,4))}
+  if(moneyKind==='pay'){item.mode=f.mode.value;if(amt)item.rno=nextRno(item.d.slice(0,4))}
   else if(moneyKind==='exp'){key='expenses';item.bill=f.bill.checked}else if(moneyKind==='disc'||moneyKind==='woff'){key='adjust';item.kind=moneyKind}else{key='plan';item.rem=Math.max(0,+f.rem.value||0)}
   item.at=new Date().toISOString();fz[key]=[...(fz[key]||[]),item];
   if(moneyKind==='pay')item.snap={owed:fzOwed(fz),paid:fzPaid(fz)};
-  if(await put('fees',id,fz)){$('#moneyDlg').close();if(moneyKind==='pay'){const idx=fz.payments.length-1;$('#rcptInfo').textContent=rs(amt)+' · '+item.rno+' · '+cname(byId(id));$$('#rcptDlg [data-a=receipt]').forEach(b=>{b.dataset.id=id;b.dataset.i=idx});$('#rcptDlg').showModal()}else toast(t('saved'))}});
+  if(await put('fees',id,fz)){$('#moneyDlg').close();if(moneyKind==='pay'&&amt){const idx=fz.payments.length-1;$('#rcptInfo').textContent=rs(amt)+' · '+item.rno+' · '+cname(byId(id));$$('#rcptDlg [data-a=receipt]').forEach(b=>{b.dataset.id=id;b.dataset.i=idx});$('#rcptDlg').showModal()}else toast(t('saved'))}});
 let VOID=null;
 E($('#voidForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),why=f.why.value.trim();if(!why){f.why.focus();return}if(!VOID)return;
   const fz=strip(F(VOID.id)),it=(fz[VOID.k]||[])[VOID.i];if(!it)return;it.void={d:TODAY,at:new Date().toISOString(),why};const V0=VOID;if(await put('fees',V0.id,fz)){$('#voidDlg').close();VOID=null;undoable(t('cancelledOn')+' '+fd(TODAY),()=>{const z=strip(F(V0.id)),x=(z[V0.k]||[])[V0.i];if(x)delete x.void;return put('fees',V0.id,z)})}});
