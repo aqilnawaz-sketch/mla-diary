@@ -8,8 +8,9 @@ service cloud.firestore {
     match /meta/{d}       { allow read: if staff(); allow write: if adv(); }
     match /staff/{e}      { allow read: if staff(); allow write: if adv(); }
     match /keyrings/{e}   { allow read, write: if adv() || (staff() && em() == e); }
-    match /records/{id}   { allow read, create, update: if staff(); allow delete: if adv(); }
-    match /files/{id}     { allow read, write: if staff(); }
+    match /records/{id}   { allow read, create, update: if staff(); allow delete: if adv() || (staff() && resource.data.k in ['appt','task']); }
+    match /files/{id}     { allow read, create, update: if staff(); allow delete: if adv(); }
+    match /audit/{id}     { allow read, create: if staff(); allow update: if adv(); allow delete: if false; }
     match /fees/{id}      { allow read, write: if adv(); }
   }
 }

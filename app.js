@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v21';const num=v=>{const s=String(v??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\d.]/g,'');return +s||0};const IT=600000;
+let TODAY=iso(new Date());const APPV='v22';const num=v=>{const s=String(v??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\d.]/g,'');return +s||0};const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?s:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -22,14 +22,15 @@ const CSTAT=['Active','Former','Prospective','Conflict-restricted'];
 const RELS=['Husband','Wife','Son','Daughter','Father','Mother','Brother','Sister','Relative','Business partner','Co-accused','Other'];
 const dg=s=>String(s||'').replace(/\D/g,'');
 const fuOpen=c=>{const l=(c.log||[]).filter(x=>x.fu&&!x.fuDone);return l.length?l[l.length-1]:null};
-const appts=()=>settings.appts||[];
+const OFF={appts:[],tasks:[],courts:[]},KMAP={appts:'appt',tasks:'task',courts:'court'};
+const appts=()=>CLOUD?OFF.appts:(settings.appts||[]);
 const apptsOn=d=>appts().filter(x=>x.d===d&&!x.done).sort((x,y)=>(x.time||'').localeCompare(y.time||''));
 const apptRow=x=>`<div class="${x.kind==='Personal'?'':'p'}"><b>${esc(x.time||'')}</b> ${esc(x.title||'')} <span class="meta">${esc(t(x.kind==='Personal'?'personal':'appointment'))}${x.cid&&cli(x.cid).name?' · '+esc(cli(x.cid).name):''}${x.note?' · '+esc(x.note):''}</span><span class="sp"></span><button class="sm ghost" type="button" data-a="apptEdit" data-id="${esc(x.id)}">${esc(t('edit'))}</button><button class="sm" type="button" data-a="apptDone" data-id="${esc(x.id)}">${esc(t('done'))}</button></div>`;
 const OTYPES=['Certified copy','Affidavit','Process fee','Contact client','Collect documents','Check court order','Submit application','Other'];
-const otasks=()=>settings.tasks||[];
-const courtsDir=()=>settings.courts||[];
+const otasks=()=>CLOUD?OFF.tasks:(settings.tasks||[]);
+const courtsDir=()=>CLOUD?OFF.courts:(settings.courts||[]);
 const who_=()=>CLOUD?(C.email||'staff'):'Advocate';
-let AUD=[];
+let AUD=[],EDITV=null;const editStart=(coll,o)=>{EDITV=o?{coll,id:o.id,u:o.updated||''}:null};
 const AUDF={title:'Title',nextDate:'Next date',status:'Status',court:'Court',judge:'Judge',stage:'Stage',caseNo:'Case no.',opp:'Opposite party',name:'Name',phone:'Phone',cnic:'CNIC',cstatus:'Client status',closeReason:'Closure',linkTo:'Linked case'};
 function audDiff(coll,old,nw){if(!old)return coll==='fees'?'Fee record created':'Created';const out=[];
   if(!old.archived&&nw.archived)return 'Moved to archive';if(old.archived&&!nw.archived)return 'Restored from archive';
@@ -40,7 +41,7 @@ function audDiff(coll,old,nw){if(!old)return coll==='fees'?'Fee record created':
   if((old.deadlines||[]).filter(x=>x.done).length<(nw.deadlines||[]).filter(x=>x.done).length)out.push('Filing/notice marked done');
   if(JSON.stringify(old.nextAct||null)!==JSON.stringify(nw.nextAct||null))out.push(nw.nextAct&&nw.nextAct.done?'Next action done':'Next action updated');
   return out.join('; ')}
-function audit(coll,id,what){if(!what)return;AUD.push({at:new Date().toISOString(),by:who_(),coll,id,what});if(AUD.length>3000)AUD=AUD.slice(-3000)}
+function audit(coll,id,what){if(!what)return;const e={at:new Date().toISOString(),by:who_(),coll,id,what};AUD.push(e);if(AUD.length>3000)AUD=AUD.slice(-3000);if(CLOUD&&C.ok){const fk=coll==='fees';if(fk&&!C.fk)return;encS(fk?C.fk:C.ok,e).then(p=>C.fs.collection('audit').doc().set({p,f:fk?1:0,u:Date.now()})).catch(()=>{})}}
 const naOpen=c=>c&&c.nextAct&&c.nextAct.text&&!c.nextAct.done?c.nextAct:null;
 const FIRM={name:'Mian Law Associates',adv:'Mian Aqil Nawaz, Advocate High Court',addr:'Chamber No. 39, District Courts, Kachahery Chowk, Bahawalpur',contact:'0333-3621111 · mianlawassociates1@gmail.com · mlabwp.com.pk'};
 const LIB={pdf:'vendor/jspdf.umd.min.js',at:'vendor/jspdf.plugin.autotable.min.js',xlsx:'vendor/xlsx.full.min.js'};
@@ -65,10 +66,10 @@ const b64=u=>{let s='';const c=0x8000;for(let i=0;i<u.length;i+=c)s+=String.from
 const unb64=s=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
 let saving=Promise.resolve();
 const snapOf=()=>({schema:1,clients:[...clients,...arc.clients],cases:[...cases,...arc.cases],fees,settings,audit:AUD});
-function persist(){const snap=snapOf();saving=saving.then(async()=>{if(!S.key)return;if(CLOUD)await idbPut('kv','settings_'+C.email,settings);else await idbPut('kv','state',await encJ(S.key,snap))}).catch(()=>toast('Could not save on this device — storage may be full'));return saving}
+function persist(){const snap=snapOf();saving=saving.then(async()=>{if(!S.key)return;if(CLOUD)await idbPut('kv','settings_'+C.email,await encJ(S.key,settings));else await idbPut('kv','state',await encJ(S.key,snap))}).catch(()=>toast('Could not save on this device — storage may be full'));return saving}
 const A={db:true};
 const CFG=(window.MLA_CLOUD&&window.MLA_CLOUD.firebase)?window.MLA_CLOUD:null,CLOUD=!!CFG;
-const C={fs:null,auth:null,email:'',adv:false,ok:null,fk:null,oraw:'',fraw:'',ring:null,unsub:[],cache:new Map(),q:Promise.resolve()};
+const C={fs:null,auth:null,email:'',adv:false,ok:null,fk:null,oraw:'',fraw:'',ring:null,unsub:[],cache:new Map(),aud:new Map(),q:Promise.resolve()};
 const pk=o=>{const u=new Uint8Array(o.iv.length+o.ct.length);u.set(o.iv);u.set(o.ct,o.iv.length);return b64(u)};
 const unpk=s=>{const u=unb64(s);return{iv:u.slice(0,12),ct:u.slice(12)}};
 const encS=async(k,obj)=>pk(await encJ(k,obj)),decS=(k,s)=>decJ(k,unpk(s));
@@ -110,7 +111,9 @@ function applyDel(coll,id){if(coll==='fees')delete fees[id];else if(coll==='case
 async function put(coll,id,data){
   if(!S.key){toast(t('locked'));return false}
   const d={...clone(data),updated:new Date().toISOString()};
-  {const old=coll==='fees'?fees[id]:(coll==='cases'?[...cases,...arc.cases]:[...clients,...arc.clients]).find(x=>x.id===id);audit(coll,id,audDiff(coll,old,d))}
+  {const old=coll==='fees'?fees[id]:(coll==='cases'?[...cases,...arc.cases]:[...clients,...arc.clients]).find(x=>x.id===id);
+   if(CLOUD&&EDITV&&EDITV.coll===coll&&EDITV.id===id&&old&&old.updated!==EDITV.u&&old.updatedBy&&old.updatedBy!==who_()){const ok=confirm(t('editConflict').replace('{who}',old.updatedBy).replace('{at}',String(old.updated||'').slice(11,16)));if(!ok){EDITV=null;return false}}
+   EDITV=null;d.updatedBy=who_();audit(coll,id,audDiff(coll,old,d))}
   if(CLOUD){if(coll==='fees'&&!C.fk){toast(t('staffNote'));return false}
     try{const p=await encS(coll==='fees'?C.fk:C.ok,d);
       if(coll==='fees')C.fs.collection('fees').doc(id).set({p,u:Date.now()}).catch(e=>toast(cErr(e)));
@@ -137,6 +140,11 @@ function vArchive(){if(!isAdmin)return '';const n=arc.cases.length+arc.clients.l
   const row=(k,x,label)=>`<div><b>${esc(label)}</b> <span class="meta">${esc(t(k==='cases'?'caseWord':'client'))} · ${fd(String(x.archived||'').slice(0,10))}</span><span class="sp"></span><button class="sm" type="button" data-a="unarc" data-k="${k}" data-id="${esc(x.id)}">${esc(t('restoreItem'))}</button><button class="sm ghost danger" type="button" data-a="purge" data-k="${k}" data-id="${esc(x.id)}">${esc(t('delForever'))}</button></div>`;
   return `<div class="panel"><h3>${esc(t('archive'))} · ${n}</h3><p class="meta">${esc(t('archiveHelp'))}</p><div class="hist">${n?[...arc.clients.map(c=>row('clients',c,c.name||t('untitledClient'))),...arc.cases.map(c=>row('cases',c,ctitle(c)+(cname(c)?' · '+cname(c):'')))].join(''):`<div class="meta">${esc(t('archiveEmpty'))}</div>`}</div></div>`}
 let UNDO=null;function undoable(msg,fn){UNDO=fn;const b=$('#undoBar');b.querySelector('span').textContent=msg;b.hidden=false;clearTimeout(undoable.h);undoable.h=setTimeout(()=>{b.hidden=true;UNDO=null},9000)}
+async function setList(kind,arr){if(!CLOUD){settings[kind]=arr;return persist()}
+  const k=KMAP[kind],cur=OFF[kind],old=new Map(cur.map(x=>[x.id,x]));
+  for(const x of arr){const o=old.get(x.id);if(o&&JSON.stringify(o)===JSON.stringify(x))continue;try{const p=await encS(C.ok,x);C.cache.set(x.id,{k,p,o:x});C.fs.collection('records').doc(x.id).set({k,p,u:Date.now(),by:C.email}).catch(e=>toast(cErr(e)))}catch(e){toast('Could not save')}}
+  for(const o of cur)if(!arr.some(x=>x.id===o.id)){C.cache.delete(o.id);C.fs.collection('records').doc(o.id).delete().catch(e=>toast(cErr(e)))}
+  cRebuild();render()}
 const newId=()=>Date.now().toString(36)+crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
 
 /* ---------- WhatsApp ---------- */
@@ -528,7 +536,7 @@ function fillPicks(root){root.querySelectorAll('[data-pick]').forEach(box=>{cons
   box.innerHTML=list.map(x=>Array.isArray(x)?`<button type="button" data-a="pick" data-k="${k==='rem'?'rem':k==='jumpT'?'jumpT':'jump'}" data-v="${x[1]}">${esc(x[0])} ${esc(t('days'))}</button>`:`<button type="button" data-a="pick" data-k="${k}" data-v="${esc(x)}">${esc(x)}</button>`).join('')})}
 let CFMORE=false;
 const ptRow=p=>`<div class="ptrow"><select data-f="role">${ROLES.map(r=>`<option ${r===(p.role||'')?'selected':''}>${esc(r)}</option>`).join('')}</select><input data-f="name" value="${esc(p.name||'')}" placeholder="Name"><button class="sm ghost danger" type="button" data-a="rmPt" aria-label="Remove">✕</button></div>`;
-function openCase(c){
+function openCase(c){editStart('cases',c);
   const f=E($('#caseForm'));f.reset();f.dataset.id=c?c.id:'';
   $('#cfTitle').textContent=c?t('edit'):t('newCase').replace('+','').trim();
   if(c){for(const k of ['title','opp','caseNo','fir','ps','sections','court','judge','type','status','filed','nextDate','stage','notes'])f[k].value=c[k]??'';f.client.value=cname(c);f.phone.value=cphone(c);f.fee.value=F(c.id).fee||''}
@@ -584,11 +592,11 @@ const relRow=(r,self)=>`<div class="ptrow"><select data-f="rel">${RELS.map(x=>`<
 let DUP_OK=false,DUPID='';
 E($('#otForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);
   const x={id:f.dataset.id||'o'+newId(),type:f.type.value,text:f.text.value.trim(),who:f.who.value,d:f.d.value,cid:f.cid.value,done:false,by:who_(),at:new Date().toISOString()};
-  const old=otasks().find(z=>z.id===x.id);if(old){x.by=old.by;x.at=old.at}settings.tasks=[...otasks().filter(z=>z.id!==x.id),x];if(x.cid)audit('cases',x.cid,(old?'Task edited: ':'Task added: ')+x.type+(x.text?' — '+x.text:''));
+  const old=otasks().find(z=>z.id===x.id);if(old){x.by=old.by;x.at=old.at}await setList('tasks',[...otasks().filter(z=>z.id!==x.id),x]);if(x.cid)audit('cases',x.cid,(old?'Task edited: ':'Task added: ')+x.type+(x.text?' — '+x.text:''));
   await persist();$('#otDlg').close();render();toast(t('saved'))});
 E($('#courtForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(!f.name.value.trim()){f.name.focus();return}
   const z={id:f.dataset.id||'k'+newId()};for(const k of ['name','cat','city','judge','room','note'])z[k]=f[k].value.trim();
-  const old=courtsDir().find(x=>x.id===z.id);settings.courts=[...courtsDir().filter(x=>x.id!==z.id),z];
+  const old=courtsDir().find(x=>x.id===z.id);await setList('courts',[...courtsDir().filter(x=>x.id!==z.id),z]);
   if(old&&old.name!==z.name&&confirm(t('courtRename')))for(const c of cases.filter(c=>c.court===old.name))await put('cases',c.id,{...strip(c),court:z.name});
   await persist();$('#courtDlg').close();render();toast(t('saved'))});
 async function caseFile(cid){const c=byId(cid);if(!c)return;const cl=cli(c.clientId),fz=F(cid);
@@ -615,8 +623,8 @@ E($('#logForm')).addEventListener('submit',async e=>{e.preventDefault();const f=
 E($('#apptForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target);if(!f.title.value.trim())f.title.value=f.kind.value==='Personal'?t('personal'):t('appointment');if(!f.d.value){f.d.value=TODAY;toast(t('warnToday'))}
   const nmv=f.who.value.trim().toLowerCase(),cl=nmv&&clients.find(c=>(c.name||'').trim().toLowerCase()===nmv);
   const x={id:f.dataset.id||'a'+newId(),kind:f.kind.value,title:f.title.value.trim(),d:f.d.value,time:f.time.value,cid:cl?cl.id:'',note:f.note.value.trim()+(nmv&&!cl?(f.note.value.trim()?' · ':'')+f.who.value.trim():''),done:false};
-  settings.appts=[...appts().filter(z=>z.id!==x.id),x];await persist();$('#apptDlg').close();render();toast(t('saved'))});
-function openClient(id){const f=E($('#clientForm'));f.reset();curClient=id||null;const c=id?clients.find(x=>x.id===id):null;
+  await setList('appts',[...appts().filter(z=>z.id!==x.id),x]);await persist();$('#apptDlg').close();render();toast(t('saved'))});
+function openClient(id){editStart('clients',id?clients.find(x=>x.id===id):null);const f=E($('#clientForm'));f.reset();curClient=id||null;const c=id?clients.find(x=>x.id===id):null;
   $('#clTitle').textContent=c?(c.name||t('untitledClient')):t('clientNew');
   if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';f.noread.checked=!!(c&&c.noread);
   f.cstatus.innerHTML=CSTAT.map(s=>`<option value="${s}" ${s===((c&&c.cstatus)||'Active')?'selected':''}>${esc(t('cs_'+s))}</option>`).join('');
@@ -667,7 +675,7 @@ function setKind(kind){moneyKind=kind;const f=E($('#moneyForm'));
   $('#mTitle').textContent=t('addTxn')+' · '+t(KINDS.find(x=>x[0]===kind)[1]);
   $('#mModeL').style.display=kind==='pay'?'':'none';$('#mBillL').style.display=kind==='exp'?'':'none';$('#mRemL').style.display=kind==='inst'?'':'none';
   f.d.value=kind==='inst'?addDays(TODAY,30):TODAY}
-function openMoney(kind,id){curId=id;const c=byId(id),f=E($('#moneyForm'));f.reset();f.bill.checked=true;setKind(kind);fillPicks($('#moneyDlg'));
+function openMoney(kind,id){curId=id;EDITV=fees[id]?{coll:'fees',id,u:fees[id].updated||''}:null;const c=byId(id),f=E($('#moneyForm'));f.reset();f.bill.checked=true;setKind(kind);fillPicks($('#moneyDlg'));
   $('#mCase').textContent=ctitle(c)+' · '+(credit(id)?t('creditBal')+' '+rs(credit(id)):t('balance')+' '+rs(bal(id)));addMics();$('#moneyDlg').showModal()}
 E($('#moneyForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curId,amt=num(f.amt.value);if(!amt)setTimeout(()=>toast(t('warnNoAmt')),1500);
   const fz=strip(F(id));const item={d:f.d.value||TODAY,amt,note:f.note.value.trim()};let key='payments';
@@ -702,7 +710,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'editCase':openCase(byId(id));break;
   case 'openClient':if($('#detDlg').open)$('#detDlg').close();openClient(id);break;
   case 'newClient':openClient(null);break;
-  case 'hear':{curId=id;const c=byId(id),f=E($('#hearForm'));f.reset();f.d.value=c.nextDate&&c.nextDate<=TODAY?c.nextDate:TODAY;f.stage.value=c.stage||'';f.status.value=c.status||'Active';$('#hCase').textContent=ctitle(c)+' · '+cname(c);fillPicks($('#hearDlg'));addMics();$('#hearDlg').showModal();break}
+  case 'hear':{curId=id;editStart('cases',byId(id));const c=byId(id),f=E($('#hearForm'));f.reset();f.d.value=c.nextDate&&c.nextDate<=TODAY?c.nextDate:TODAY;f.stage.value=c.stage||'';f.status.value=c.status||'Active';$('#hCase').textContent=ctitle(c)+' · '+cname(c);fillPicks($('#hearDlg'));addMics();$('#hearDlg').showModal();break}
   case 'pay':openMoney('pay',id);break;case 'exp':openMoney('exp',id);break;case 'inst':openMoney('inst',id);break;
   case 'receipt':if(el.closest('#rcptDlg'))$('#rcptDlg').close();receipt(id,i,el.dataset.how);break;
   case 'readyShare':if(READY){const r=READY;READY=null;$('#readyDlg').close();navigator.share({files:[r.file],...(r.opt.text?{text:r.opt.text}:{})}).catch(()=>{})}break;
@@ -722,19 +730,19 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'logAdd':{if(!curClient)break;const f=E($('#logForm'));f.reset();$('#logWho').textContent=cli(curClient).name||'';fillPicks($('#logDlg'));addMics();$('#logDlg').showModal();break}
   case 'logFor':{openClient(id);const f=E($('#logForm'));f.reset();$('#logWho').textContent=cli(id).name||'';fillPicks($('#logDlg'));addMics();$('#logDlg').showModal();break}
   case 'appt':case 'apptEdit':{const x=a==='apptEdit'?appts().find(z=>z.id===id):null;const f=E($('#apptForm'));f.reset();f.dataset.id=x?x.id:'';f.kind.value=x?x.kind:'Appointment';f.title.value=x?x.title:'';f.d.value=x?x.d:(view==='calendar'?calDay:TODAY);f.time.value=x?x.time||'':'';f.who.value=x&&x.cid?cli(x.cid).name||'':'';f.note.value=x?x.note||'':'';$('#apptDel').style.display=x?'':'none';addMics();$('#apptDlg').showModal();break}
-  case 'apptDone':{const before=clone(appts());settings.appts=appts().map(z=>z.id===id?{...z,done:true}:z);await persist();render();undoable(t('done'),async()=>{settings.appts=before;await persist();render()});break}
-  case 'apptDel':{const fid=E($('#apptForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.appts=appts().filter(z=>z.id!==fid);await persist();$('#apptDlg').close();render();toast(t('deleted'));break}
+  case 'apptDone':{const before=clone(appts());await setList('appts',appts().map(z=>z.id===id?{...z,done:true}:z));await persist();render();undoable(t('done'),async()=>{await setList('appts',before);await persist();render()});break}
+  case 'apptDel':{const fid=E($('#apptForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');await setList('appts',appts().filter(z=>z.id!==fid));await persist();$('#apptDlg').close();render();toast(t('deleted'));break}
   case 'otEdit':{const x=id?otasks().find(z=>z.id===id):null;const f=E($('#otForm'));f.reset();f.dataset.id=x?x.id:'';
     f.cid.innerHTML='<option value=""></option>'+cases.filter(c=>c.status==='Active').sort((p,q)=>ctitle(p).localeCompare(ctitle(q))).map(c=>`<option value="${esc(c.id)}">${esc(ctitle(c))}${cname(c)?' · '+esc(cname(c)):''}</option>`).join('');
     f.type.innerHTML=OTYPES.map(o=>`<option>${esc(o)}</option>`).join('');
     f.type.value=x?x.type||'Other':'Certified copy';f.text.value=x?x.text||'':'';f.who.value=x?x.who||'Advocate':'Munshi';f.d.value=x?x.d||'':addDays(TODAY,1);f.cid.value=x?x.cid||'':(el.dataset.cid||'');
     $('#otDel').style.display=x?'':'none';fillPicks($('#otDlg'));addMics();$('#otDlg').showModal();break}
-  case 'otDone':{const before=clone(otasks());settings.tasks=otasks().map(z=>z.id===id?{...z,done:true,doneOn:TODAY}:z);const x=otasks().find(z=>z.id===id);if(x&&x.cid)audit('cases',x.cid,'Task done: '+(x.type||'')+' '+(x.text||''));await persist();render();undoable(t('done'),async()=>{settings.tasks=before;await persist();render()});break}
-  case 'otDel':{const fid=E($('#otForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.tasks=otasks().filter(z=>z.id!==fid);await persist();$('#otDlg').close();render();toast(t('deleted'));break}
+  case 'otDone':{const before=clone(otasks());await setList('tasks',otasks().map(z=>z.id===id?{...z,done:true,doneOn:TODAY}:z));const x=otasks().find(z=>z.id===id);if(x&&x.cid)audit('cases',x.cid,'Task done: '+(x.type||'')+' '+(x.text||''));await persist();render();undoable(t('done'),async()=>{await setList('tasks',before);await persist();render()});break}
+  case 'otDel':{const fid=E($('#otForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');await setList('tasks',otasks().filter(z=>z.id!==fid));await persist();$('#otDlg').close();render();toast(t('deleted'));break}
   case 'courtEdit':{const z=id?courtsDir().find(x=>x.id===id):null;const f=E($('#courtForm'));f.reset();f.dataset.id=z?z.id:'';f.cat.innerHTML='<option value=""></option>'+COURT_TYPES.map(o=>`<option>${esc(o)}</option>`).join('');
     for(const k of ['name','cat','city','judge','room','note'])f[k].value=z?z[k]||'':'';if(!z)f.city.value='Bahawalpur';$('#courtDel').style.display=z?'':'none';$('#courtDlg').showModal();break}
-  case 'courtDel':{const fid=E($('#courtForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');settings.courts=courtsDir().filter(z=>z.id!==fid);await persist();$('#courtDlg').close();render();break}
-  case 'courtImport':{const have=new Set(courtsDir().map(z=>z.name));const add=[...new Set(cases.map(c=>c.court).filter(Boolean))].filter(c=>!have.has(c)).map(c=>{const j=cases.find(x=>x.court===c&&x.judge);const p=c.split(',');return{id:'k'+newId(),name:c,cat:COURT_TYPES.includes(p[0].trim())?p[0].trim():'',city:(p[1]||'').trim(),judge:j?j.judge:'',room:'',note:''}});settings.courts=[...courtsDir(),...add];await persist();render();toast(t('saved')+' · '+add.length);break}
+  case 'courtDel':{const fid=E($('#courtForm')).dataset.id;if(!fid)break;if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}delete el.dataset.sure;el.textContent=t('del');await setList('courts',courtsDir().filter(z=>z.id!==fid));await persist();$('#courtDlg').close();render();break}
+  case 'courtImport':{const have=new Set(courtsDir().map(z=>z.name));const add=[...new Set(cases.map(c=>c.court).filter(Boolean))].filter(c=>!have.has(c)).map(c=>{const j=cases.find(x=>x.court===c&&x.judge);const p=c.split(',');return{id:'k'+newId(),name:c,cat:COURT_TYPES.includes(p[0].trim())?p[0].trim():'',city:(p[1]||'').trim(),judge:j?j.judge:'',room:'',note:''}});await setList('courts',[...courtsDir(),...add]);await persist();render();toast(t('saved')+' · '+add.length);break}
   case 'caseFile':caseFile(id);break;
   case 'bkGo':$('#bkDlg').close();encBackup();break;
   case 'rpRestore':{if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');break}const o=await idbGet('kv',id);if(!o||!S.meta||o.salt!==b64(S.meta.salt))break;
@@ -796,7 +804,7 @@ async function encBackup(){
     if(!CLOUD){const meta=await idbGet('kv','meta'),state=await idbGet('kv','state'),keys=await idbKeys('files');if(!meta||!state){toast(t('nothingToBackup'));return}
       const files=[];for(const k of keys){const o=await idbGet('files',k);if(o)files.push({id:k,...pack(o)})}
       out={app:'mla-diary',v:1,schema:1,created:new Date().toISOString(),meta:packMeta(meta),state:pack(state),files}}
-    else{const data={clients,cases,fees:C.fk?fees:{},settings};const files=[];
+    else{const data={clients:[...clients,...arc.clients],cases:[...cases,...arc.cases],fees:C.fk?fees:{},settings:{...settings,appts:OFF.appts,tasks:OFF.tasks,courts:OFF.courts},audit:AUD};const files=[];
       for(const c of cases)for(const d of c.docs||[]){try{const f=await fileBytes(d);if(f){const o=await enc(S.key,f.bytes);o.type=f.type;files.push({id:d.id,...pack(o)})}}catch(x){}}
       out={app:'mla-diary',v:1,created:new Date().toISOString(),meta:{salt:C.ring.salt,ver:pack(unpk(C.ring.ver))},state:pack(await encJ(S.key,data)),files}}
     await shareOrSave('MLA-Diary-backup-'+TODAY+'.json',JSON.stringify(out),{text:'MLA Diary backup '+fd(TODAY),mail:1});
@@ -821,6 +829,8 @@ async function doRestore(file,pass,pre){
   for(const c of d.cases||[]){const {id,...r}=c;for(const doc of r.docs||[]){const f=(b.o.files||[]).find(x=>x.id===doc.id);if(!f)continue;try{const bytes=await dec(b.key,unpack(f));const pp=pk(await enc(C.ok,bytes));if(pp.length<950000){await C.fs.collection('files').doc(doc.id).set({p:pp,type:f.type||'',u:Date.now()});delete doc.local}else{const oo=await enc(C.ok,bytes);oo.type=f.type;await idbPut('files',doc.id,oo);doc.local=1}}catch(x){}}
     await put('cases',id,r);n++}
   if(C.fk)for(const [id,f] of Object.entries(d.fees||{}))await put('fees',id,f);
+  const ds=d.settings||{};for(const kind of ['appts','tasks','courts'])if((ds[kind]||[]).length)await setList(kind,[...OFF[kind].filter(x=>!ds[kind].some(y=>y.id===x.id)),...ds[kind]]);
+  for(const e of (d.audit||[]).slice(-1500)){const fk=e.coll==='fees';if(fk&&!C.fk)continue;try{await C.fs.collection('audit').doc().set({p:await encS(fk?C.fk:C.ok,e),f:fk?1:0,u:Date.now()})}catch(x){}}
   toast(t('restored')+' · '+n)}
 function load_(d){clients=d.clients||[];cases=d.cases||[];fees=d.fees||{};settings=d.settings||{};AUD=d.audit||[];arc={cases:[],clients:[]};moveArc()}
 
@@ -873,16 +883,28 @@ async function cInit(){for(const f of ['vendor/firebase-app-compat.js','vendor/f
   firebase.initializeApp(CFG.firebase);C.auth=firebase.auth();C.fs=firebase.firestore();try{await C.fs.enablePersistence({synchronizeTabs:true})}catch(x){}
   await new Promise(r=>{const u=C.auth.onAuthStateChanged(()=>{u();r()})})}
 function cUnsub(){C.unsub.forEach(u=>{try{u()}catch(x){}});C.unsub=[]}
-function cRebuild(){const cs=[],cl=[];for(const [id,v] of C.cache){if(!v.o)continue;(v.k==='case'?cs:cl).push({id,...v.o})}cases=cs;clients=cl;arc={cases:[],clients:[]};moveArc()}
-function cSubscribe(){cUnsub();C.cache.clear();clients=[];cases=[];fees={};let first=0;const need=C.fk?2:1;const timer=setTimeout(()=>status(t('offline')),12000);
+function cRebuild(){const cs=[],cl=[],L={appt:[],task:[],court:[]};for(const [id,v] of C.cache){if(!v.o)continue;if(v.k==='case')cs.push({id,...v.o});else if(v.k==='client')cl.push({id,...v.o});else if(L[v.k])L[v.k].push({...v.o,id})}cases=cs;clients=cl;OFF.appts=L.appt;OFF.tasks=L.task;OFF.courts=L.court;arc={cases:[],clients:[]};moveArc()}
+function cSubscribe(){cUnsub();C.cache.clear();C.aud.clear();AUD=[];clients=[];cases=[];fees={};let first=0;const need=C.fk?2:1;const timer=setTimeout(()=>status(t('offline')),12000);
   const ready=()=>{if(++first>=need){clearTimeout(timer);status('')}};let r1=0,r2=0;
-  C.unsub.push(C.fs.collection('records').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.cache.delete(id);continue}const d=ch.doc.data();const c=C.cache.get(id);if(c&&c.p===d.p)continue;try{C.cache.set(id,{k:d.k,p:d.p,o:await decS(C.ok,d.p)})}catch(x){}}cRebuild();if(!snap.metadata.fromCache&&!r1++)ready();render()})},e=>{clearTimeout(timer);status(cErr(e))}));
+  C.unsub.push(C.fs.collection('records').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.cache.delete(id);continue}const d=ch.doc.data();const c=C.cache.get(id);if(c&&c.p===d.p)continue;try{C.cache.set(id,{k:d.k,p:d.p,o:await decS(C.ok,d.p)})}catch(x){keyCheck()}}cRebuild();if(!snap.metadata.fromCache&&!r1++)ready();render()})},e=>{clearTimeout(timer);status(cErr(e))}));
+  C.unsub.push(C.fs.collection('audit').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){C.aud.delete(id);continue}const d=ch.doc.data();if(d.f&&!C.fk)continue;try{C.aud.set(id,await decS(d.f?C.fk:C.ok,d.p))}catch(x){}}AUD=[...C.aud.values()].sort((x,y)=>x.at<y.at?-1:1).slice(-3000);render()})},()=>{}));
   if(C.fk)C.unsub.push(C.fs.collection('fees').onSnapshot(snap=>{C.q=C.q.then(async()=>{for(const ch of snap.docChanges()){const id=ch.doc.id;if(ch.type==='removed'){delete fees[id];continue}try{fees[id]=await decS(C.fk,ch.doc.data().p)}catch(x){}}if(!snap.metadata.fromCache&&!r2++)ready();render()})},e=>toast(cErr(e))));
 }
+async function keyCheck(){if(keyCheck.busy)return;keyCheck.busy=1;try{const r=await C.fs.collection('keyrings').doc(C.email).get();if(!r.exists||r.data().ring!==C.ring.ring){lock();$('#lkErr').textContent=t('keyChanged')}}catch(x){}finally{setTimeout(()=>keyCheck.busy=0,5000)}}
+async function rotateOffice(removed){status(t('rotating'));const nraw=rnd(32),nk=await rawKey(nraw);let n=0;
+  for(const d of (await C.fs.collection('records').get()).docs){const v=d.data();try{const o=await decS(C.ok,v.p);await C.fs.collection('records').doc(d.id).set({...v,p:await encS(nk,o),u:Date.now()});n++}catch(x){}}
+  for(const d of (await C.fs.collection('files').get()).docs){const v=d.data();try{const b=await dec(C.ok,unpk(v.p));await C.fs.collection('files').doc(d.id).set({...v,p:pk(await enc(nk,b)),u:Date.now()})}catch(x){}}
+  for(const d of (await C.fs.collection('audit').get()).docs){const v=d.data();if(v.f)continue;try{const o=await decS(C.ok,v.p);await C.fs.collection('audit').doc(d.id).set({...v,p:await encS(nk,o)})}catch(x){}}
+  for(const k of await idbKeys('files')){try{const o=await idbGet('files',k);const b=await dec(C.ok,o);const e=await enc(nk,b);e.type=o.type;await idbPut('files',k,e)}catch(x){}}
+  const ring={...C.ring,ring:await encS(S.key,{o:nraw,...(C.fraw?{f:C.fraw}:{})}),u:Date.now()};await C.fs.collection('keyrings').doc(C.email).set(ring);C.ring=ring;
+  const others=(await C.fs.collection('staff').get()).docs.map(d=>d.id).filter(e=>e!==removed&&e!==C.email);
+  for(const e of others){await C.fs.collection('keyrings').doc(e).delete().catch(()=>{});await C.fs.collection('staff').doc(e).set({added:TODAY,by:C.email,readd:1}).catch(()=>{})}
+  await C.fs.collection('meta').doc('office').set({created:TODAY,by:C.email,rotated:new Date().toISOString()}).catch(()=>{});
+  C.oraw=nraw;C.ok=nk;status('');cSubscribe();return others}
 async function makeRing(pass,keys){const salt=crypto.getRandomValues(new Uint8Array(16));const k=await deriveKey(pass,salt);return{k,doc:{salt:b64(salt),ver:pk(await enc(k,te.encode('mla-ok'))),ring:await encS(k,keys),u:Date.now()}}}
-async function staffList(){const el=$('#staffList');if(!el||!C.adv)return;try{const q=await C.fs.collection('staff').get();el.innerHTML=q.docs.length?q.docs.map(d=>`<div><b>${esc(d.id)}</b> <span class="meta">${esc(t('added'))} ${fd(d.data().added)}</span><span class="sp"></span><button class="sm ghost danger" type="button" data-a="rmStaff" data-id="${esc(d.id)}">${esc(t('remove'))}</button></div>`).join(''):`<div class="meta">${esc(t('noStaff'))}</div>`}catch(e){el.textContent=cErr(e)}}
+async function staffList(){const el=$('#staffList');if(!el||!C.adv)return;try{const q=await C.fs.collection('staff').get();el.innerHTML=q.docs.length?q.docs.map(d=>`<div><b>${esc(d.id)}</b> <span class="meta">${esc(t('added'))} ${fd(d.data().added)}${d.data().readd?' · <b class="danger">'+esc(t('needReadd'))+'</b>':''}</span><span class="sp"></span><button class="sm ghost danger" type="button" data-a="rmStaff" data-id="${esc(d.id)}">${esc(t('remove'))}</button></div>`).join(''):`<div class="meta">${esc(t('noStaff'))}</div>`}catch(e){el.textContent=cErr(e)}}
 async function addStaff(email,pass){email=email.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(email)){toast(t('badEmail'));return}if(pass.length<6){toast(t('passShort'));return}
-  try{const r=await makeRing(pass,{o:C.oraw});await C.fs.collection('keyrings').doc(email).set(r.doc);await C.fs.collection('staff').doc(email).set({added:TODAY,by:C.email});toast(t('staffAdded'));staffList()}catch(e){toast(cErr(e))}}
+  try{const r=await makeRing(pass,{o:C.oraw});await C.fs.collection('keyrings').doc(email).set(r.doc);await C.fs.collection('staff').doc(email).set({added:TODAY,by:C.email});audit('cases','-','Staff added: '+email);toast(t('staffAdded'));staffList()}catch(e){toast(cErr(e))}}
 
 /* ---------- settings view ---------- */
 const daysSince=d=>d?Math.floor((new Date(TODAY+'T00:00')-new Date(d+'T00:00'))/864e5):Infinity;
@@ -1078,14 +1100,14 @@ $('#lockForm').addEventListener('submit',async e=>{e.preventDefault();const f=E(
   }catch(x){err.textContent=cErr(x)}finally{btn.disabled=false}
 });
 async function unlockCloud(k,keys){S.key=k;S.meta={salt:unb64(C.ring.salt),ver:unpk(C.ring.ver)};C.oraw=keys.o;C.fraw=keys.f||'';C.ok=await rawKey(keys.o);C.fk=keys.f?await rawKey(keys.f):null;
-  settings=(await idbGet('kv','settings_'+C.email).catch(()=>null))||{};cSubscribe();opened()}
+  {const s=await idbGet('kv','settings_'+C.email).catch(()=>null);try{settings=s&&s.iv&&s.ct?await decJ(k,s):(s||{})}catch(x){settings={}}}cSubscribe();opened()}
 document.addEventListener('submit',async e=>{
   if(e.target.id==='staffForm'){e.preventDefault();const f=E(e.target);await addStaff(f.e.value,f.p.value);f.reset();return}
   if(e.target.id!=='pwForm')return;e.preventDefault();const f=E(e.target);
   if(f.n.value.length<6){toast(t('passShort'));return}if(f.n.value!==f.c.value){toast(t('passMismatch'));return}
   try{const old=await deriveKey(f.o.value,S.meta.salt,S.meta.it);await dec(old,S.meta.ver)}catch(x){toast(t('wrongPass'));return}
   toast(t('working'));
-  try{if(CLOUD){const r=await makeRing(f.n.value,{o:C.oraw,...(C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(C.email).set(r.doc);C.ring=r.doc;S.key=r.k;S.meta={salt:unb64(r.doc.salt),ver:unpk(r.doc.ver)};S.pw=f.n.value;f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));return}
+  try{if(CLOUD){const r=await makeRing(f.n.value,{o:C.oraw,...(C.fraw?{f:C.fraw}:{})});await C.fs.collection('keyrings').doc(C.email).set(r.doc);C.ring=r.doc;S.key=r.k;S.meta={salt:unb64(r.doc.salt),ver:unpk(r.doc.ver)};S.pw=f.n.value;await persist();f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));return}
     const hadRec=!!(S.meta&&S.meta.rec);await rekey(f.n.value,false);S.pw=f.n.value;f.reset();await idbDel('kv',bioKey()).catch(()=>{});toast(t('passChanged'));if(hadRec)setTimeout(()=>alert(t('recRedo')),400);render()}
   catch(x){toast(CLOUD?cErr(x):'Could not change password')}
 });
@@ -1130,7 +1152,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   if(a==='runImport')runImport();
   if(a==='cancelImport'){IMPORT=null;render()}
   if(a==='mic'){const tg=el.previousElementSibling;if(tg)voice(tg,el)}
-  if(a==='rmStaff'){if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');return}const id=el.dataset.id;try{await C.fs.collection('staff').doc(id).delete();await C.fs.collection('keyrings').doc(id).delete();toast(t('deleted'));staffList()}catch(x){toast(cErr(x))}}
+  if(a==='rmStaff'){if(!el.dataset.sure){el.dataset.sure=1;el.textContent=t('tapAgain');return}const id=el.dataset.id;if(!navigator.onLine){toast(t('needOnline'));return}try{await C.fs.collection('staff').doc(id).delete();await C.fs.collection('keyrings').doc(id).delete();const others=await rotateOffice(id);audit('cases','-','Staff removed: '+id+' (office key changed)');toast(t('deleted'));if(others.length)alert(t('readdStaff')+' '+others.join(', '));staffList()}catch(x){status('');toast(cErr(x))}}
   if(a==='lkRetry')showLock();
   if(a==='lkOut'){try{await C.auth.signOut()}catch(x){}showLock()}
   if(a==='restoreStart'){E($('#restoreForm')).reset();$('#rsErr').textContent='';$('#rsOk').textContent='';$('#rsWarn').textContent=CLOUD?t('importWarn'):(S.meta?t('restoreWarn'):'');$('#rsCurL').style.display=!CLOUD&&S.meta&&!S.key?'':'none';$('#restoreDlg').showModal()}
