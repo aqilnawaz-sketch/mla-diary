@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-let TODAY=iso(new Date());const APPV='v24';const num=v=>{const s=String(v??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\d.]/g,'');return +s||0};const IT=600000;
+let TODAY=iso(new Date());const APPV='v25';const num=v=>{const s=String(v??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\d.]/g,'');return +s||0};const IT=600000;
 const addDays=(s,n)=>{const d=new Date(s+'T00:00');d.setDate(d.getDate()+n);return iso(d)};
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fd=s=>{if(!s)return '—';const d=new Date(s+'T00:00');return isNaN(d)?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])):d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
@@ -19,6 +19,7 @@ const ROLES=['Plaintiff','Defendant','Petitioner','Respondent','Appellant','Comp
 const LINKS=['Appeal','Revision','Execution','12(2) CPC','Writ / constitutional petition','Connected FIR','Bail matter','Review','Other'];
 const CLOSES=['Decided in favour','Decided against','Partly decided','Dismissed','Withdrawn','Compromised','Transferred','Pending execution','Other'];
 const CSTAT=['Active','Former','Prospective','Conflict-restricted'];
+const SRC=['Google','Facebook','Instagram','YouTube','TikTok','LinkedIn','Website','WhatsApp','Referral','Walk-in','Old client','Other'];let ENQ=false;
 const RELS=['Husband','Wife','Son','Daughter','Father','Mother','Brother','Sister','Relative','Business partner','Co-accused','Other'];
 const dg=s=>String(s||'').replace(/\D/g,'');
 const fuOpen=c=>{const l=(c.log||[]).filter(x=>x.fu&&!x.fuDone);return l.length?l[l.length-1]:null};
@@ -359,7 +360,7 @@ function vHome(){
   if(ui.gq.trim())return h+searchAll(ui.gq);
   const card=(n,l,v,al)=>`<button type="button" class="chip ${al?'alert':''}" data-a="tab" data-v="${v}" data-nav="1"><b>${esc(n)}</b><small>${esc(l)}</small></button>`;
   h+=`<div class="chips">${card(tl.length,t('todayH'),'diary')}${card(tml.length,t('tomorrowH'),'diary')}${card(pend.length,t('filingsWeek'),'diary',odl.length)}${isAdmin?card(fdue.length,t('feesDueWeek'),'fee',fdue.some(o=>o.ni.d<TODAY)):''}</div>`;
-  h+=`<div class="acts" style="margin:-6px 0 18px"><button type="button" data-a="newClient">${esc(t('newClient'))}</button><button type="button" data-a="newCase">${esc(t('newCase'))}</button><button type="button" class="ghost" data-a="causePdf">${esc(t('causeList'))}</button><button type="button" class="ghost" data-a="roundSheet">${esc(t('roundSheet'))}</button></div>`;
+  h+=`<div class="acts" style="margin:-6px 0 18px"><button type="button" data-a="newEnq">${esc(t('newEnq'))}</button><button type="button" data-a="newClient">${esc(t('newClient'))}</button><button type="button" data-a="newCase">${esc(t('newCase'))}</button><button type="button" class="ghost" data-a="causePdf">${esc(t('causeList'))}</button><button type="button" class="ghost" data-a="roundSheet">${esc(t('roundSheet'))}</button></div>`;
   if(noRes.length||odl.length||naOver.length||limChk.length)h+=`<div class="panel" style="border-color:var(--tape)"><h3 class="danger">${esc(t('needAttention'))}</h3><div class="hist">${limChk.map(c=>`<div class="x"><b>${esc(t('limCheck'))}</b> · <a href="#" data-a="open" data-id="${esc(c.id)}">${esc(ctitle(c))}</a> <span class="meta">${esc(c.closeReason||t('st_Decided'))} · ${fd(c.closeDate)}</span><span class="sp"></span><button class="sm" type="button" data-a="limEdit" data-id="${esc(c.id)}">${esc(t('limSet'))}</button></div>`).join('')}${naOver.map(o=>`<div class="x"><b>${esc(t('nextAction'))}</b> · ${esc(o.na.text)} · ${fd(o.na.d)} · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm" type="button" data-a="naDone" data-id="${esc(o.c.id)}">${esc(t('done'))}</button></div>`).join('')}${odl.map(o=>`<div class="x"><b>${esc(t('overdueDl'))}</b> ${esc(o.x.label||'')} · ${fd(o.x.d)} · <a href="#" data-a="open" data-id="${esc(o.c.id)}">${esc(ctitle(o.c))}</a><span class="sp"></span><button class="sm" type="button" data-a="dlDone" data-id="${esc(o.c.id)}" data-i="${o.i}">${esc(t('done'))}</button></div>`).join('')}${noRes.sort((a,b)=>a.nextDate<b.nextDate?-1:1).map(c=>`<div><b>${esc(t('noResult'))}</b> · ${fd(c.nextDate)} · <a href="#" data-a="open" data-id="${esc(c.id)}">${esc(ctitle(c))}</a> <span class="meta">${esc(cname(c))}</span><span class="sp"></span><button class="sm pri" type="button" data-a="hear" data-id="${esc(c.id)}">${esc(t('update'))}</button></div>`).join('')}</div></div>`;
   const apT=apptsOn(TODAY),fus=clients.map(c=>({c,f:fuOpen(c)})).filter(o=>o.f&&o.f.fu<=TODAY);
   if(apT.length)h+=`<h2 class="sec">${esc(t('apptToday'))}</h2><div class="hist">${apT.map(apptRow).join('')}</div>`;
@@ -415,10 +416,17 @@ function vCases(){
   if(!list.length)return h+`<div class="empty">${esc(t('noMatch'))}</div>`;
   return h+`<table class="stack"><thead><tr><th>${esc(t('title'))}</th><th>${esc(t('client'))}</th><th>${esc(t('court'))}</th><th>${esc(t('nextDate'))}</th><th>${esc(t('status'))}</th>${isAdmin?`<th class="n">${esc(t('balance'))}</th>`:''}</tr></thead><tbody>${list.map(c=>`<tr data-a="open" data-id="${esc(c.id)}"><td><b>${esc(ctitle(c))}</b>${c.caseNo||c.fir?`<div class="meta">${esc([c.caseNo,c.fir?'FIR '+c.fir:''].filter(Boolean).join(' · '))}</div>`:''}</td><td>${esc(cname(c))}</td><td>${esc(c.court)}</td><td style="white-space:nowrap">${fd(c.nextDate)}</td><td>${esc(stL(c.status))}</td>${isAdmin?`<td class="n">${owed(c.id)?rs(bal(c.id)):''}</td>`:''}</tr>`).join('')}</tbody></table>`;
 }
+function enqReport(){const en=clients.filter(c=>c.src&&c.enqD);if(!en.length)return '';
+  const m0=TODAY.slice(0,7),d=new Date(TODAY+'T00:00');d.setDate(1);d.setMonth(d.getMonth()-1);const m1=iso(d).slice(0,7);
+  const conv=c=>cases.some(x=>x.clientId===c.id)||c.cstatus==='Active';
+  const row=(m,lab)=>{const l=en.filter(c=>c.enqD.startsWith(m));if(!l.length)return `<div><b>${esc(lab)}</b> · 0</div>`;const by={};l.forEach(c=>{const o=by[c.src]=by[c.src]||[0,0];o[0]++;if(conv(c))o[1]++});
+    return `<div><b>${esc(lab)}</b> · ${l.length} ${esc(t('enqN'))} · ${l.filter(conv).length} ${esc(t('enqWon'))}<div class="tags">${Object.entries(by).sort((a,b)=>b[1][0]-a[1][0]).map(([s,o])=>`<span class="tag">${esc(t('src_'+s))}: ${o[0]}${o[1]?' ('+o[1]+' ✓)':''}</span>`).join('')}</div></div>`};
+  return `<div class="panel"><h3>${esc(t('enqReport'))}</h3><div class="hist">${row(m0,t('thisMonth'))}${row(m1,t('lastMonth'))}</div><p class="meta">${esc(t('enqHelp'))}</p></div>`}
 function vClients(){
   const q=ui.cq.toLowerCase();
   const list=clients.filter(c=>(ui.cf==='All'||(c.cstatus||'Active')===ui.cf)&&(!q||[c.name,c.phone,c.cnic,c.address,c.ref].join(' ').toLowerCase().includes(q))).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  let h=`<div class="bar"><input id="cq" type="search" placeholder="${esc(t('search'))}" value="${esc(ui.cq)}"><select id="cf">${['All',...CSTAT].map(s=>`<option value="${s}" ${s===ui.cf?'selected':''}>${esc(s==='All'?t('all'):t('cs_'+s))}</option>`).join('')}</select><button type="button" class="sm pri" data-a="newClient">${esc(t('newClient'))}</button></div>`;
+  let h=`<div class="bar"><input id="cq" type="search" placeholder="${esc(t('search'))}" value="${esc(ui.cq)}"><select id="cf">${['All',...CSTAT].map(s=>`<option value="${s}" ${s===ui.cf?'selected':''}>${esc(s==='All'?t('all'):t('cs_'+s))}</option>`).join('')}</select><button type="button" class="sm" data-a="newEnq">${esc(t('newEnq'))}</button><button type="button" class="sm pri" data-a="newClient">${esc(t('newClient'))}</button></div>`;
+  if(!q&&ui.cf==='All')h+=enqReport();
   if(!list.length)return h+`<div class="empty">${esc(clients.length?t('noMatch'):t('noClients'))}<p class="meta">${esc(t('clientsHow'))}</p></div>`;
   return h+`<div class="rows">${list.map(c=>{const cs=cases.filter(x=>x.clientId===c.id),act=cs.filter(x=>x.status==='Active'),nx=act.map(x=>x.nextDate).filter(d=>d&&d>=TODAY).sort()[0],b=isAdmin?cs.reduce((a,x)=>a+bal(x.id),0):0,types=[...new Set(cs.map(x=>x.type||'Other'))];
     return `<div class="row"><div class="main" data-a="openClient" data-id="${esc(c.id)}"><h3>${esc(c.name||t('untitledClient'))}</h3><div class="meta">${esc(c.phone||'')}${c.phone&&cs.length?' · ':''}${cs.length?cs.length+' '+esc(t('cases_n')):''}</div>
@@ -584,7 +592,7 @@ E($('#caseForm')).addEventListener('submit',async e=>{e.preventDefault();
   $('#caseDlg').close();toast(t('saved'));if($('#detDlg').open)detail(id);
 });
 E($('#clientForm')).addEventListener('submit',async e=>{e.preventDefault();const f=E(e.target),id=curClient||newId('clients');
-  const d={...(curClient?strip(clients.find(c=>c.id===curClient)):{created:new Date().toISOString()})};for(const k of ['name','phone','cnic','ref','address','email','notes'])d[k]=f[k].value.trim();d.noread=f.noread.checked;d.cstatus=f.cstatus.value;
+  const d={...(curClient?strip(clients.find(c=>c.id===curClient)):{created:new Date().toISOString()})};for(const k of ['name','phone','cnic','ref','address','email','notes'])d[k]=f[k].value.trim();d.noread=f.noread.checked;d.cstatus=f.cstatus.value;d.src=f.src.value;d.enqType=f.enqType.value;d.enqD=f.enqD.value||(d.src&&!d.enqD?String(d.created||new Date().toISOString()).slice(0,10):'');
   d.related=$$('#relRows .ptrow').map(r=>({rel:r.querySelector('[data-f=rel]').value,id:r.querySelector('[data-f=cid]').value})).filter(r=>r.id);
   const ph=dg(d.phone).slice(-10),cn=dg(d.cnic);const dup=clients.find(x=>x.id!==id&&((ph.length>=10&&dg(x.phone).slice(-10)===ph)||(cn.length>=13&&dg(x.cnic)===cn)));
   if(dup&&!DUP_OK){DUPID=dup.id;$('#dupInfo').textContent=(dup.name||t('untitledClient'))+(dup.phone?' · '+dup.phone:'')+(dup.cnic?' · '+dup.cnic:'')+' — '+cases.filter(x=>x.clientId===dup.id).length+' '+t('cases_n');$('#dupDlg').showModal();return}DUP_OK=false;
@@ -629,7 +637,10 @@ E($('#apptForm')).addEventListener('submit',async e=>{e.preventDefault();const f
 function openClient(id){editStart('clients',id?clients.find(x=>x.id===id):null);const f=E($('#clientForm'));f.reset();curClient=id||null;const c=id?clients.find(x=>x.id===id):null;
   $('#clTitle').textContent=c?(c.name||t('untitledClient')):t('clientNew');
   if(c)for(const k of ['name','phone','cnic','ref','address','email','notes'])f[k].value=c[k]||'';f.noread.checked=!!(c&&c.noread);
-  f.cstatus.innerHTML=CSTAT.map(s=>`<option value="${s}" ${s===((c&&c.cstatus)||'Active')?'selected':''}>${esc(t('cs_'+s))}</option>`).join('');
+  f.cstatus.innerHTML=CSTAT.map(s=>`<option value="${s}" ${s===((c&&c.cstatus)||(ENQ?'Prospective':'Active'))?'selected':''}>${esc(t('cs_'+s))}</option>`).join('');
+  f.src.innerHTML=['',...SRC].map(s=>`<option value="${s}" ${s===((c&&c.src)||'')?'selected':''}>${esc(s?t('src_'+s):'—')}</option>`).join('');
+  f.enqType.innerHTML=['',...TYPES].map(s=>`<option value="${esc(s)}" ${s===((c&&c.enqType)||'')?'selected':''}>${esc(s||'—')}</option>`).join('');
+  f.enqD.value=(c&&c.enqD)||(ENQ?TODAY:'');if(!c&&ENQ)$('#clTitle').textContent=t('newEnqT');ENQ=false;
   $('#relRows').innerHTML=(c&&c.related||[]).map(r=>relRow(r,id)).join('');addMics();
   $('#clEdit').open=!c;
   $('#delClientBtn').style.display=c&&isAdmin?'':'none';delete $('#delClientBtn').dataset.sure;$('#delClientBtn').textContent=t('toArchive');
@@ -712,6 +723,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]'
   case 'editCase':openCase(byId(id));break;
   case 'openClient':if($('#detDlg').open)$('#detDlg').close();openClient(id);break;
   case 'newClient':openClient(null);break;
+  case 'newEnq':ENQ=true;openClient(null);break;
   case 'hear':{curId=id;editStart('cases',byId(id));const c=byId(id),f=E($('#hearForm'));f.reset();f.d.value=c.nextDate&&c.nextDate<=TODAY?c.nextDate:TODAY;f.stage.value=c.stage||'';f.status.value=c.status||'Active';$('#hCase').textContent=ctitle(c)+' · '+cname(c);fillPicks($('#hearDlg'));addMics();$('#hearDlg').showModal();break}
   case 'pay':openMoney('pay',id);break;case 'exp':openMoney('exp',id);break;case 'inst':openMoney('inst',id);break;
   case 'receipt':if(el.closest('#rcptDlg'))$('#rcptDlg').close();receipt(id,i,el.dataset.how);break;
